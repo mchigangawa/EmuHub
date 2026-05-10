@@ -127,23 +127,23 @@ struct AboutPage: View {
                 VStack(spacing: 0) {
                     AboutLinkRow(icon: "star.fill", color: .yellow,
                                  label: "GitHub Repository",
-                                 url: "https://github.com/Munyaradzi-Chigangawa/EmuHub")
+                                 url: "https://github.com/mchigangawa/EmuHub")
                     Divider().padding(.leading, 46)
                     AboutLinkRow(icon: "doc.text.fill", color: .blue,
                                  label: "Changelog",
-                                 url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/blob/main/CHANGELOG.md")
+                                 url: "https://github.com/mchigangawa/EmuHub/blob/main/CHANGELOG.md")
                     Divider().padding(.leading, 46)
                     AboutLinkRow(icon: "exclamationmark.bubble.fill", color: .red,
                                  label: "Report an Issue",
-                                 url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/issues")
+                                 url: "https://github.com/mchigangawa/EmuHub/issues")
                     Divider().padding(.leading, 46)
                     AboutLinkRow(icon: "person.2.fill", color: .purple,
                                  label: "Contributing Guide",
-                                 url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/blob/main/CONTRIBUTING.md")
+                                 url: "https://github.com/mchigangawa/EmuHub/blob/main/CONTRIBUTING.md")
                     Divider().padding(.leading, 46)
                     AboutLinkRow(icon: "hand.raised.fill", color: .green,
                                  label: "MIT License",
-                                 url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/blob/main/LICENSE")
+                                 url: "https://github.com/mchigangawa/EmuHub/blob/main/LICENSE")
                 }
 
                 Divider()
