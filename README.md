@@ -50,7 +50,7 @@ Click the menu bar icon, launch an AVD, and monitor every connected device. That
 
 ### macOS (Manual Install)
 
-1. Download the latest `.zip` from **[GitHub Releases](https://github.com/Munyaradzi-Chigangawa/EmuHub/releases)**
+1. Download the latest `.zip` from **[GitHub Releases](https://github.com/mchigangawa/EmuHub/releases)**
 2. Unzip and drag **EmuHub.app** into your **Applications** folder
 3. On first launch, remove the quarantine attribute:
 
@@ -166,7 +166,7 @@ Separate multiple flags with spaces.
 ### Run Locally
 
 ```bash
-git clone https://github.com/Munyaradzi-Chigangawa/EmuHub.git
+git clone https://github.com/mchigangawa/EmuHub.git
 cd EmuHub
 open EmuHub.xcodeproj
 ```

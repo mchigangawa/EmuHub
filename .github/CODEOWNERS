@@ -1,14 +1,14 @@
 # Default: all changes require maintainer review
-* @Munyaradzi-Chigangawa
+* @mchigangawa
 
 # Extra sensitive: CI / workflows
-.github/workflows/* @Munyaradzi-Chigangawa
+.github/workflows/* @mchigangawa
 
 # App source
-EmuHub/** @Munyaradzi-Chigangawa
+EmuHub/** @mchigangawa
 
 # Docs
-docs/** @Munyaradzi-Chigangawa
-README.md @Munyaradzi-Chigangawa
-CONTRIBUTING.md @Munyaradzi-Chigangawa
-LICENSE @Munyaradzi-Chigangawa
+docs/** @mchigangawa
+README.md @mchigangawa
+CONTRIBUTING.md @mchigangawa
+LICENSE @mchigangawa
