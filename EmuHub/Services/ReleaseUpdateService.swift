@@ -8,7 +8,7 @@
 import Foundation
 
 struct ReleaseUpdateService {
-    private let owner = "Munyaradzi-Chigangawa"
+    private let owner = "mchigangawa"
     private let repository = "EmuHub"
 
     func checkForUpdates(currentVersion: String) async throws -> UpdateCheckResult {

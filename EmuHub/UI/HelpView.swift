@@ -264,7 +264,7 @@ private struct SupportLinksView: View {
                     iconColor: .red,
                     label: "Report a Bug",
                     subtitle: "Open a GitHub issue",
-                    url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/issues/new"
+                    url: "https://github.com/mchigangawa/EmuHub/issues/new"
                 )
                 Divider().padding(.leading, 44)
                 SupportLinkRow(
@@ -272,7 +272,7 @@ private struct SupportLinksView: View {
                     iconColor: .yellow,
                     label: "Request a Feature",
                     subtitle: "Share your ideas on GitHub",
-                    url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/issues/new"
+                    url: "https://github.com/mchigangawa/EmuHub/issues/new"
                 )
                 Divider().padding(.leading, 44)
                 SupportLinkRow(
@@ -280,7 +280,7 @@ private struct SupportLinksView: View {
                     iconColor: .blue,
                     label: "View Changelog",
                     subtitle: "See what's new in each release",
-                    url: "https://github.com/Munyaradzi-Chigangawa/EmuHub/blob/main/CHANGELOG.md"
+                    url: "https://github.com/mchigangawa/EmuHub/blob/main/CHANGELOG.md"
                 )
             }
             .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
