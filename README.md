@@ -37,7 +37,7 @@ Click the menu bar icon, launch an AVD, and monitor every connected device. That
 - Auto-detect Android SDK path, or configure it manually
 - Pass custom launch arguments to the emulator (e.g., `-no-snapshot-load -gpu host`)
 - Configurable auto-refresh interval (3–60 seconds)
-- Launch at login support (macOS 13+)
+- Launch at login support (macOS 14+)
 
 ### Updates
 - In-app update checker via GitHub Releases API
@@ -69,7 +69,7 @@ Then open EmuHub normally from Applications.
 
 | Requirement | Detail |
 |---|---|
-| macOS | 13.0 Ventura or newer |
+| macOS | 14.0 Sonoma or newer |
 | Android SDK | Installed at `~/Library/Android/sdk` (auto-detected) |
 | adb | Included in `platform-tools` inside the SDK |
 | Android Emulator | Included in `emulator` inside the SDK |
@@ -171,7 +171,7 @@ cd EmuHub
 open EmuHub.xcodeproj
 ```
 
-Build and run the `EmuHub` scheme. Requires Xcode 15+ and macOS 13+.
+Build and run the `EmuHub` scheme. Requires Xcode 15+ and macOS 14+.
 
 ### Project Structure
 
