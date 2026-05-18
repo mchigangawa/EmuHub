@@ -12,6 +12,26 @@ Click the menu bar icon, launch an AVD, and monitor every connected device. That
 
 ---
 
+## Capability Snapshot
+
+EmuHub is capable of:
+
+- Managing Android emulators (AVDs): list, launch, and stop instances from the menu bar
+- Monitoring running emulators with resolved names and ports
+- Detecting physical Android devices over USB and Wi-Fi ADB
+- Resolving device model + Android version details from adb properties
+- Showing actionable connection states (authorized, unauthorized, offline)
+- Supporting a global quick-toggle shortcut (**⌥⌘X**)
+- Auto-refreshing device/emulator state on a configurable interval
+- Auto-detecting or manually configuring Android SDK paths
+- Passing custom emulator launch flags for advanced workflows
+- Checking for app updates from GitHub Releases in-app
+- Starting automatically at login on macOS 14+
+
+For a website-ready positioning and copy package, see **`docs/marketing-website-brief.md`**.
+
+---
+
 ## Features
 
 ### Emulator Management
@@ -43,6 +63,21 @@ Click the menu bar icon, launch an AVD, and monitor every connected device. That
 - In-app update checker via GitHub Releases API
 - Shows installed vs latest version with direct download link
 - Auto-checks on first open of the Software Update page
+
+---
+
+## Brand Colors (for Marketing / Website)
+
+Use these app-aligned colors for landing pages and promotional assets:
+
+- Primary Blue: `#3B82F6`
+- Primary Purple: `#8B5CF6`
+- Accent Cyan: `#06B6D4`
+- Success Green: `#22C55E`
+- Warning Orange: `#F59E0B`
+- Error Red: `#EF4444`
+
+Preferred gradient direction: **top-left blue → bottom-right purple**.
 
 ---
 
