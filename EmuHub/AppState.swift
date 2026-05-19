@@ -10,6 +10,7 @@ import SwiftUI
 import AppKit
 import Combine
 import ServiceManagement
+import Carbon.HIToolbox
 
 @MainActor
 final class AppState: ObservableObject {
@@ -44,7 +45,8 @@ final class AppState: ObservableObject {
     private var refreshTask: Task<Void, Never>?
     private var actionFeedbackTask: Task<Void, Never>?
 
-    private var hotKeyMonitors: [Any] = []
+    private var hotKeyRef: EventHotKeyRef?
+    private var hotKeyEventHandler: EventHandlerRef?
 
     init() {
         refreshLaunchAtLoginState()
@@ -53,28 +55,79 @@ final class AppState: ObservableObject {
 
     // MARK: - Global Hot Key (⌥⌘X)
 
-    /// Registers a global + local keyboard shortcut (⌥⌘X) that toggles the menu bar popover.
-    /// The global monitor fires when EmuHub is in the background (opening the popover).
-    /// The local monitor fires when the popover is already open (closing it).
-    /// Note: the global monitor requires Accessibility permission in System Settings.
+    /// Registers a process-global ⌥⌘X hotkey via Carbon that toggles the menu bar popover.
+    /// Carbon hotkeys work regardless of which app is frontmost and require no Accessibility
+    /// permission, unlike `NSEvent.addGlobalMonitorForEvents`.
     private func registerHotKey() {
-        let toggle: (NSEvent) -> Void = { event in
-            guard event.modifierFlags.intersection([.command, .option, .control, .shift]) == [.option, .command],
-                  event.charactersIgnoringModifiers?.lowercased() == "x" else { return }
-            // statusItems is ObjC-only; access via KVC since the Swift overlay doesn't expose it
-            guard let items = NSStatusBar.system.value(forKey: "statusItems") as? [NSStatusItem],
-                  let button = items.first?.button else { return }
-            button.performClick(nil)
+        let modifiers: UInt32 = UInt32(optionKey | cmdKey)
+        let keyCode: UInt32 = UInt32(kVK_ANSI_X)
+        let hotKeyID = EventHotKeyID(signature: 0x454D5548 /* 'EMUH' */, id: 1)
+
+        var eventType = EventTypeSpec(
+            eventClass: OSType(kEventClassKeyboard),
+            eventKind: UInt32(kEventHotKeyPressed)
+        )
+
+        let selfPtr = Unmanaged.passUnretained(self).toOpaque()
+
+        InstallEventHandler(
+            GetApplicationEventTarget(),
+            { _, _, userData -> OSStatus in
+                guard let userData else { return noErr }
+                let state = Unmanaged<AppState>.fromOpaque(userData).takeUnretainedValue()
+                DispatchQueue.main.async { state.toggleMenuBarPopover() }
+                return noErr
+            },
+            1,
+            &eventType,
+            selfPtr,
+            &hotKeyEventHandler
+        )
+
+        RegisterEventHotKey(
+            keyCode,
+            modifiers,
+            hotKeyID,
+            GetApplicationEventTarget(),
+            0,
+            &hotKeyRef
+        )
+    }
+
+    private func toggleMenuBarPopover() {
+        let windows = NSApp.windows
+
+        // SwiftUI's MenuBarExtra(.window) panel is an NSPanel of class
+        // `MenuBarExtraWindow<…>`. It's lazy-instantiated on the first user click,
+        // so if it doesn't exist yet we have to bootstrap it via the status item.
+        if let panel = windows.first(where: {
+            String(describing: type(of: $0)).contains("MenuBarExtraWindow")
+        }) {
+            if panel.isVisible {
+                panel.orderOut(nil)
+            } else {
+                panel.makeKeyAndOrderFront(nil)
+                NSApp.activate(ignoringOtherApps: true)
+            }
+            return
         }
 
-        if let global = NSEvent.addGlobalMonitorForEvents(matching: .keyDown, handler: toggle) {
-            hotKeyMonitors.append(global)
+        // Panel not yet created — click the status item button to make SwiftUI build it.
+        for window in windows where String(describing: type(of: window)) == "NSStatusBarWindow" {
+            if let button = AppState.findStatusBarButton(in: window.contentView) {
+                button.performClick(nil)
+                return
+            }
         }
-        let local = NSEvent.addLocalMonitorForEvents(matching: .keyDown) { event in
-            toggle(event)
-            return event
+    }
+
+    private static func findStatusBarButton(in view: NSView?) -> NSStatusBarButton? {
+        guard let view else { return nil }
+        if let button = view as? NSStatusBarButton { return button }
+        for subview in view.subviews {
+            if let button = findStatusBarButton(in: subview) { return button }
         }
-        hotKeyMonitors.append(local as Any)
+        return nil
     }
 
     // MARK: - Auto Refresh
