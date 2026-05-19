@@ -20,6 +20,22 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.2.4] - 2026-05-19
+
+### Fixed
+- **Global keyboard shortcut (⌥⌘X) reliability** — Switched the shortcut from `NSEvent.addGlobalMonitorForEvents` to Carbon's `RegisterEventHotKey`, so it now works without requiring Accessibility permission in System Settings. Also fixed a cold-launch bug where ⌥⌘X did nothing until the menu bar icon had been clicked at least once: SwiftUI's `MenuBarExtra(.window)` lazily instantiates its panel on first click, so the toggle now bootstraps the panel by clicking the status item when no panel window exists yet.
+
+---
+
+## [1.2.3] - 2026-05-15
+
+### Changed
+- **Swift 6 and macOS 14.6 minimum** — Bumped `SWIFT_VERSION` to 6.0 and `MACOSX_DEPLOYMENT_TARGET` to 14.6 for both Debug and Release configurations.
+- **Bundle metadata** — Added `CFBundleDisplayName` (EmuHub) and `LSApplicationCategoryType` (`public.app-category.developer-tools`) so the app shows the correct display name and category in Finder, Spotlight, and System Settings.
+- Refreshed macOS app icons.
+
+---
+
 ## [1.2.2] - 2026-04-10
 
 ### Added
