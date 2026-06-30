@@ -115,6 +115,11 @@ struct EmulatorService {
         )
     }
 
+    /// Deletes an AVD and its data via `avdmanager delete avd`.
+    func deleteAVD(avdmanagerPath: String, name: String) async throws {
+        _ = try await Shell.run(avdmanagerPath, ["delete", "avd", "--name", name])
+    }
+
     func startAVD(emulatorPath: String, avdName: String, extraArgs: [String]) async throws {
         // Start and detach: we intentionally don't await termination
         let process = Process()

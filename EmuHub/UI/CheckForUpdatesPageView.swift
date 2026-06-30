@@ -192,14 +192,7 @@ private struct UpdatePageHeader: View {
         .frame(maxWidth: .infinity)
         .padding(.vertical, 20)
         .padding(.horizontal, 12)
-        .background(
-            RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .fill(Color.primary.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-                )
-        )
+        .background(GlassCard(cornerRadius: 14))
     }
 }
 
@@ -244,14 +237,7 @@ private struct UpdateResultCard: View {
             .padding(.horizontal, 16)
             .padding(.vertical, 14)
         }
-        .background(
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(Color.primary.opacity(0.03))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.primary.opacity(0.07), lineWidth: 1)
-                )
-        )
+        .background(GlassCard(cornerRadius: 12))
 
         // Release notes link (always available)
         Button {

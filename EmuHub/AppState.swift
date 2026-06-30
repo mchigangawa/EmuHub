@@ -31,6 +31,23 @@ final class AppState: ObservableObject {
     @Published var isCreatingAVD = false
     @Published var avdCreationError: String?
 
+    // Device actions
+    @Published var recordingSerials: Set<String> = []      // serials currently screen-recording
+    @Published var busyDevices: Set<String> = []           // serials with a blocking action in flight
+
+    // App management sheet
+    @Published var appManagerDevice: RunningDevice?
+    @Published var packages: [String] = []
+    @Published var isLoadingPackages = false
+    @Published var packagesError: String?
+    @Published var busyPackage: String?                    // package with an action in flight
+
+    // Logcat viewer
+    @Published var logcatDevice: RunningDevice?            // device whose logs are showing
+    @Published var logEntries: [LogEntry] = []
+    @Published var logcatError: String?
+    @Published var isLogcatPaused = false
+
     @AppStorage("sdkPath") var sdkPath: String = ""
     @AppStorage("emulatorExtraArgs") var emulatorExtraArgs: String = "-no-snapshot-load"
     @AppStorage("autoRefreshSeconds") var autoRefreshSeconds: Double = 10
@@ -38,9 +55,20 @@ final class AppState: ObservableObject {
     let emulatorService = EmulatorService()
     let adbService = AdbService()
     let releaseUpdateService = ReleaseUpdateService()
+    let logcatService = LogcatService()
+
+    /// Cap on retained log lines; oldest are dropped past this to bound memory.
+    let maxLogEntries = 5000
 
     /// Persistent in-session cache of physical device properties keyed by serial.
     private var deviceInfoCache: [String: (model: String?, version: String?)] = [:]
+
+    /// Cache of resolved emulator AVD names keyed by serial, so steady-state polls
+    /// don't re-run `adb emu avd name` for emulators we've already identified.
+    private var emulatorNameCache: [String: String] = [:]
+
+    /// In-progress screen recordings: serial → (process, device-side mp4 path).
+    var screenRecordings: [String: (process: Process, devicePath: String)] = [:]
 
     private var refreshTask: Task<Void, Never>?
     private var actionFeedbackTask: Task<Void, Never>?
@@ -132,12 +160,22 @@ final class AppState: ObservableObject {
 
     // MARK: - Auto Refresh
 
+    /// Number of device polls between full AVD-list scans. `emulator -list-avds`
+    /// is slow (it spins up the emulator binary) and AVDs change rarely, so we
+    /// poll devices on every tick but only rescan AVDs occasionally.
+    private let avdRescanEveryNPolls = 6
+
     func startAutoRefresh() {
         refreshTask?.cancel()
         refreshTask = Task { [weak self] in
             guard let self else { return }
+            var tick = 0
             while !Task.isCancelled {
-                await self.refreshAll()
+                // Background polls are silent (no spinner) and only rescan the AVD
+                // list every Nth tick so the slow emulator binary call doesn't run
+                // every cycle.
+                await self.refreshAll(silent: true, includeAVDs: tick % self.avdRescanEveryNPolls == 0)
+                tick &+= 1
                 try? await Task.sleep(nanoseconds: UInt64(self.autoRefreshSeconds * 1_000_000_000))
             }
         }
@@ -150,42 +188,84 @@ final class AppState: ObservableObject {
 
     // MARK: - Refresh
 
-    func refreshAll() async {
+    /// Refreshes device (and optionally AVD) state.
+    /// - Parameters:
+    ///   - silent: when true, doesn't toggle `isRefreshing` (used by the background
+    ///     poll so the Refresh spinner doesn't flicker every interval).
+    ///   - includeAVDs: when true, rescans the AVD list via the (slow) emulator binary.
+    func refreshAll(silent: Bool = false, includeAVDs: Bool = true) async {
         ensureSdkPath()
-        isRefreshing = true
+        if !silent { isRefreshing = true }
         defer {
-            isRefreshing = false
+            if !silent { isRefreshing = false }
             lastRefreshAt = Date()
         }
 
         do {
             let toolchain = try AndroidToolchain(sdkPath: sdkPath)
 
-            let avdNames = try await emulatorService.listAVDs(emulatorPath: toolchain.emulatorPath)
-            self.avds = avdNames.map { AVD(name: $0) }
+            // Run the slow AVD scan and the device list concurrently when both
+            // are needed, so the emulator-binary call doesn't block device updates.
+            if includeAVDs {
+                async let avdNamesTask = emulatorService.listAVDs(emulatorPath: toolchain.emulatorPath)
+                async let devicesTask = adbService.listRunning(adbPath: toolchain.adbPath)
 
-            var devices = try await adbService.listRunning(adbPath: toolchain.adbPath)
-            await enrichDevices(&devices, adbPath: toolchain.adbPath)
-            self.running = devices
+                let avdNames = try await avdNamesTask
+                var devices = try await devicesTask
+                await enrichDevices(&devices, adbPath: toolchain.adbPath)
+
+                applyAVDs(avdNames)
+                applyRunning(devices)
+            } else {
+                var devices = try await adbService.listRunning(adbPath: toolchain.adbPath)
+                await enrichDevices(&devices, adbPath: toolchain.adbPath)
+                applyRunning(devices)
+            }
+
             self.lastError = nil
         } catch {
             self.lastError = error.localizedDescription
         }
     }
 
+    /// Publishes a new AVD list only when it actually changed, to avoid waking
+    /// SwiftUI (and re-rendering every card) on every identical poll.
+    private func applyAVDs(_ names: [String]) {
+        let next = names.map { AVD(name: $0) }
+        if next != avds { avds = next }
+    }
+
+    /// Publishes a new device list only when it changed.
+    private func applyRunning(_ devices: [RunningDevice]) {
+        if devices != running { running = devices }
+    }
+
     /// Enriches a device list with model info (physical) and AVD names (emulators).
     /// Concurrent adb queries; caches physical device properties for subsequent refreshes.
     private func enrichDevices(_ devices: inout [RunningDevice], adbPath: String) async {
-        // Apply already-cached physical device info immediately
-        for i in devices.indices where !devices[i].isEmulator {
-            if let cached = deviceInfoCache[devices[i].serial] {
+        // Drop cache entries for devices that are no longer connected so a serial
+        // reused by a different emulator/device can't surface stale info.
+        let currentSerials = Set(devices.map(\.serial))
+        deviceInfoCache = deviceInfoCache.filter { currentSerials.contains($0.key) }
+        emulatorNameCache = emulatorNameCache.filter { currentSerials.contains($0.key) }
+
+        // Apply already-cached info immediately (emulator names and physical props).
+        for i in devices.indices {
+            if devices[i].isEmulator {
+                if let name = emulatorNameCache[devices[i].serial] {
+                    devices[i].avdName = name
+                }
+            } else if let cached = deviceInfoCache[devices[i].serial] {
                 devices[i].model = cached.model
                 devices[i].androidVersion = cached.version
             }
         }
 
+        // Only query what we don't already have cached.
         let emulatorIndices = devices.indices.filter {
-            devices[$0].isEmulator && devices[$0].state == "device"
+            devices[$0].isEmulator &&
+            devices[$0].state == "device" &&
+            emulatorNameCache[devices[$0].serial] == nil
         }
         let physicalIndices = devices.indices.filter {
             !devices[$0].isEmulator &&
@@ -228,6 +308,11 @@ final class AppState: ObservableObject {
             }
         }
 
+        for i in emulatorIndices {
+            if let name = devices[i].avdName, !name.isEmpty {
+                emulatorNameCache[devices[i].serial] = name
+            }
+        }
         for i in physicalIndices {
             deviceInfoCache[devices[i].serial] = (
                 model: devices[i].model,
@@ -297,47 +382,6 @@ final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Screenshot
-
-    /// Captures a screenshot from the device and saves it to the Desktop.
-    /// Opens the file in the default image viewer on success.
-    func captureScreenshot(device: RunningDevice) async {
-        do {
-            ensureSdkPath()
-            let toolchain = try AndroidToolchain(sdkPath: sdkPath)
-            let url = try await adbService.captureScreenshot(
-                adbPath: toolchain.adbPath,
-                serial: device.serial
-            )
-            setActionFeedback("Screenshot saved to Desktop")
-            NSWorkspace.shared.activateFileViewerSelecting([url])
-        } catch {
-            lastError = "Screenshot failed: \(error.localizedDescription)"
-        }
-    }
-
-    // MARK: - APK Install
-
-    /// Installs an APK file onto a running device or emulator.
-    func installAPK(device: RunningDevice, url: URL) async {
-        installingAPK.insert(device.serial)
-        lastError = nil
-        defer { installingAPK.remove(device.serial) }
-
-        do {
-            ensureSdkPath()
-            let toolchain = try AndroidToolchain(sdkPath: sdkPath)
-            try await adbService.installAPK(
-                adbPath: toolchain.adbPath,
-                serial: device.serial,
-                apkURL: url
-            )
-            setActionFeedback("APK installed on \(device.displayName)")
-        } catch {
-            lastError = "Install failed: \(error.localizedDescription)"
-        }
-    }
-
     // MARK: - Action Feedback
 
     /// Shows a transient success message that auto-dismisses after 3 seconds.
@@ -384,132 +428,9 @@ final class AppState: ObservableObject {
         }
     }
 
-    // MARK: - Updates
-
-    // MARK: - Auto Update
-
-    /// Downloads the release zip, extracts it, writes an update script that waits for
-    /// this process to exit then swaps the bundle in-place via rsync, and relaunches.
-    func applyUpdate(downloadURL: URL) async {
-        isUpdating = true
-        updateStage = "Downloading…"
-        updateError = nil
-        defer {
-            if isUpdating {           // only runs when we bail early on error
-                isUpdating = false
-                updateStage = nil
-            }
-        }
-
-        do {
-            // 1. Download the zip to a temp file
-            let (tempZip, _) = try await URLSession.shared.download(from: downloadURL)
-
-            // 2. Create extraction directory
-            updateStage = "Extracting…"
-            let fm = FileManager.default
-            let extractDir = fm.temporaryDirectory.appendingPathComponent(UUID().uuidString)
-            try fm.createDirectory(at: extractDir, withIntermediateDirectories: true)
-
-            _ = try await Shell.run("/usr/bin/unzip", ["-q", tempZip.path, "-d", extractDir.path])
-
-            // 3. Find the .app inside the extracted content
-            guard let newApp = (try fm.contentsOfDirectory(at: extractDir,
-                                                            includingPropertiesForKeys: nil))
-                .first(where: { $0.pathExtension == "app" })
-            else {
-                throw NSError(domain: "EmuHub", code: 2, userInfo: [
-                    NSLocalizedDescriptionKey: "No .app bundle found in the downloaded archive."
-                ])
-            }
-
-            // 4. Write an update shell script that:
-            //    - waits for this process to fully exit
-            //    - rsync-replaces the bundle
-            //    - cleans up temp files
-            //    - relaunches the updated app
-            updateStage = "Preparing…"
-            let pid = ProcessInfo.processInfo.processIdentifier
-            let currentBundle = Bundle.main.bundleURL.path
-            let scriptContent = """
-            #!/bin/bash
-            # Wait for EmuHub (PID \(pid)) to exit
-            while kill -0 \(pid) 2>/dev/null; do
-                sleep 0.3
-            done
-            rsync -a --delete "\(newApp.path)/" "\(currentBundle)/"
-            rm -rf "\(extractDir.path)"
-            open "\(currentBundle)"
-            """
-            let scriptURL = fm.temporaryDirectory.appendingPathComponent("emuhub_updater_\(pid).sh")
-            try scriptContent.write(to: scriptURL, atomically: true, encoding: .utf8)
-            try fm.setAttributes([.posixPermissions: 0o755], ofItemAtPath: scriptURL.path)
-
-            // 5. Launch the script detached so it survives after this process exits
-            let launcher = Process()
-            launcher.executableURL = URL(fileURLWithPath: "/bin/bash")
-            launcher.arguments = [scriptURL.path]
-            launcher.standardOutput = FileHandle.nullDevice
-            launcher.standardError  = FileHandle.nullDevice
-            try launcher.run()
-
-            // 6. Quit — the script takes it from here
-            updateStage = "Installing…"
-            try? await Task.sleep(nanoseconds: 400_000_000) // brief pause so user sees the stage
-            NSApp.terminate(nil)
-
-        } catch {
-            updateError = "Update failed: \(error.localizedDescription)"
-        }
-    }
-
-    func checkForUpdates() async {
-        let currentVersion = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0"
-        isCheckingForUpdates = true
-        updateError = nil
-        defer { isCheckingForUpdates = false }
-
-        do {
-            updateCheckResult = try await releaseUpdateService.checkForUpdates(currentVersion: currentVersion)
-        } catch {
-            updateCheckResult = nil
-            updateError = error.localizedDescription
-        }
-    }
-
-    // MARK: - AVD Creation
-
-    func createAVD(name: String, systemImagePackage: String, deviceId: String) async {
-        isCreatingAVD = true
-        avdCreationError = nil
-        defer { isCreatingAVD = false }
-
-        do {
-            ensureSdkPath()
-            let toolchain = try AndroidToolchain(sdkPath: sdkPath)
-            guard let avdmanagerPath = toolchain.avdmanagerPath else {
-                throw NSError(
-                    domain: "EmuHub", code: 1,
-                    userInfo: [NSLocalizedDescriptionKey:
-                        "avdmanager not found. Install Android Command-line Tools via SDK Manager."]
-                )
-            }
-            try await emulatorService.createAVD(
-                avdmanagerPath: avdmanagerPath,
-                name: name,
-                package: systemImagePackage,
-                device: deviceId
-            )
-            setActionFeedback("AVD \"\(name)\" created successfully")
-            await refreshAll()
-        } catch {
-            avdCreationError = error.localizedDescription
-        }
-    }
-
     // MARK: - Private Helpers
 
-    private func ensureSdkPath() {
+    func ensureSdkPath() {
         let fm = FileManager.default
         if sdkPath.isEmpty || !fm.fileExists(atPath: sdkPath) {
             let auto = AndroidToolchain.defaultMacSdkPath()
