@@ -14,9 +14,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 - Homebrew cask installation
 - ADB port forwarding management panel
 - Clipboard sync between Mac and connected device
-- Device log (logcat) viewer accessible from the running device card
 - Advanced emulator controls (snapshot save/load)
 - Notification when a long-booting emulator becomes ready
+
+---
+
+## [1.3.0] - 2026-06-30
+
+### Added
+- **Device actions menu** — every running emulator and authorized physical device now has a `•••` actions menu (also available via right-click) with:
+  - **Reboot** — normal, into Recovery, or into Bootloader (`adb reboot`).
+  - **Open adb Shell** — opens Terminal with an interactive `adb -s <serial> shell` session ready to go.
+  - **Manage Apps** — a panel listing user-installed packages with per-app **Launch**, **Force Stop**, **Clear Data**, and **Uninstall** actions.
+  - **Copy Serial** / **Copy Wi-Fi Address** to the clipboard.
+- **Screen recording** — a record button on each device card captures video via `adb shell screenrecord` (Android caps recordings at 3 minutes) and saves the MP4 to the Desktop, revealing it in Finder when done. A red indicator appears on the device tile while recording.
+- **Logcat viewer** — a **View Logs…** action in each device's `•••` menu opens a live `adb logcat` stream with color-coded priority badges, a minimum-level filter (Verbose → Fatal), free-text tag/message search, pause/resume, clear, and copy- or save-to-Desktop export. Streaming is incremental (parsed off the main thread) and capped to a rolling 5,000-line buffer.
+- **Delete AVD** — the AVD right-click menu now has a **Delete AVD…** action that removes the virtual device via `avdmanager delete avd` after a confirmation prompt. Deletion is refused while that AVD is running so data is never pulled out from under a live emulator.
+
+### Changed
+- **Glassy UI revamp** — the popover now uses a translucent vibrancy background with frosted-glass cards, tinted device tiles, and refined hover/elevation for a modern macOS look. The same frosted-glass treatment carries through every screen — Settings, Help, About, Software Update, and New AVD use matching group cards, tinted glass icon tiles, and translucent input fields.
+- **Refined home section headers** — the item count is now a frosted pill, the search control a glass button, and the "New AVD" (+) button a prominent accent-gradient action.
+- **Faster, smoother refreshing** — the auto-refresh was reworked to remove per-cycle lag:
+  - AVDs now have a stable identity (derived from name) instead of a fresh UUID per poll, so SwiftUI reuses cards instead of tearing down and rebuilding the whole list every cycle.
+  - Resolved emulator AVD names are cached by serial, eliminating the ~0.4s `adb emu avd name` call from steady-state polls (cache is pruned when a device disconnects).
+  - The device and (slow) AVD-list scans now run concurrently, and the AVD list is only rescanned every sixth poll since AVDs rarely change.
+  - The list is only re-published when it actually changes, so identical polls cause zero re-renders, and background polls are silent (the Refresh spinner no longer flickers every interval).
+- **Internal refactor** — split the oversized view and app-state files into smaller responsibility-focused files (no behavior change).
 
 ---
 

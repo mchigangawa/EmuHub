@@ -28,6 +28,28 @@ Click the menu bar icon, launch an AVD, and monitor every connected device. That
 - Clear status labels for unauthorized and offline devices with actionable guidance
 - Connection type (USB / Wi-Fi) shown in the device status badge
 
+### Device Actions
+Each running emulator and authorized physical device exposes a **`•••` actions menu** (also available via right-click) and inline buttons on the device card:
+
+- **Screenshot** — captures the current screen and saves a PNG to your Desktop, opening it in Finder
+- **Screen recording** — records the screen via `adb shell screenrecord` (Android caps this at 3 minutes), saves the MP4 to your Desktop, and reveals it in Finder; a red indicator shows on the device tile while recording
+- **Install APK** — drag-and-drop an `.apk` onto the device card to install it (`adb install -r`)
+- **Reboot** — reboot normally, into **Recovery**, or into **Bootloader** (`adb reboot`)
+- **Open adb Shell** — opens Terminal with an interactive `adb -s <serial> shell` session ready to go
+- **Manage Apps** — opens a panel listing user-installed packages, each with **Launch**, **Force Stop**, **Clear Data**, and **Uninstall** actions
+- **View Logs** — opens a live `adb logcat` viewer with color-coded priority badges, a minimum-level filter (Verbose → Fatal), tag/message search, pause/resume, clear, and copy- or save-to-Desktop export (rolling 5,000-line buffer)
+- **Copy Serial / Copy Wi-Fi Address** — copies the device serial (or wireless address) to the clipboard
+
+### Create & Manage AVDs
+- Create a new AVD in-app from any installed system image and hardware profile (via `avdmanager`)
+- Search/filter the AVD list
+- Launch options per AVD: normal launch, **Cold Boot** (`-no-snapshot-load`), or **Wipe Data & Boot** (`-wipe-data`)
+- **Delete an AVD** from the right-click menu, with a confirmation prompt (`avdmanager delete avd`) — blocked while the emulator is running
+
+### Design
+- Modern translucent (glassy) menu-bar UI with frosted-glass device cards, vibrancy background, and tinted device tiles that adapt to light and dark mode
+- The glass treatment carries through every screen — Settings, Help, About, Software Update, and New AVD use the same frosted group cards, tinted glass icon tiles, and translucent input fields
+
 ### Keyboard Shortcut
 - Press **⌥⌘X** (Option + Command + X) from anywhere to open or close the EmuHub popover
 - Works globally when EmuHub is in the background (requires Accessibility permission in System Settings → Privacy & Security)

@@ -78,8 +78,9 @@ struct SettingsView: View {
                         .font(.system(size: 11))
                     }
                     TextField("~/Library/Android/sdk", text: $state.sdkPath)
-                        .textFieldStyle(.roundedBorder)
+                        .textFieldStyle(.plain)
                         .font(.system(size: 12, design: .monospaced))
+                        .glassField()
                     Text("Root folder containing platform-tools, emulator, and avd directories.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
@@ -109,8 +110,9 @@ struct SettingsView: View {
                     .font(.system(size: 11))
                 }
                 TextField("-no-snapshot-load -gpu host", text: $state.emulatorExtraArgs)
-                    .textFieldStyle(.roundedBorder)
+                    .textFieldStyle(.plain)
                     .font(.system(size: 12, design: .monospaced))
+                    .glassField()
                 Text("Flags passed to the emulator binary at launch. Separate multiple flags with spaces.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
@@ -225,14 +227,9 @@ private struct PrefsSection<Content: View>: View {
                 .foregroundStyle(.secondary)
                 .kerning(0.5)
 
-            VStack(spacing: 0) {
+            GlassGroup(cornerRadius: 12) {
                 content()
             }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -247,14 +244,7 @@ private struct PrefsRow<Accessory: View>: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(iconColor.opacity(0.12))
-                    .frame(width: 28, height: 28)
-                Image(systemName: icon)
-                    .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(iconColor)
-            }
+            GlassIconTile(systemImage: icon, color: iconColor, size: 28)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(title)

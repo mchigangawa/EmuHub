@@ -53,6 +53,10 @@ private let helpSections: [HelpSection] = [
                 question: "How do I create a new AVD?",
                 answer: "Click the + icon in the Available section header to open the New AVD screen. Enter a name, choose a system image package, and select a device profile, then tap Create. EmuHub runs avdmanager in the background — the new AVD appears in the list once creation completes."
             ),
+            HelpItem(
+                question: "How do I delete an AVD?",
+                answer: "Right-click an AVD in the Available section and choose Delete AVD…. EmuHub asks you to confirm, then permanently removes the virtual device and all of its data via avdmanager. You can't delete an AVD while its emulator is running — stop the emulator first."
+            ),
         ]
     ),
     HelpSection(
@@ -65,12 +69,24 @@ private let helpSections: [HelpSection] = [
                 answer: "Hover over a running device or emulator in the Running section and click the camera icon. EmuHub captures the screen via adb, saves the PNG to your Desktop, and reveals it in Finder automatically."
             ),
             HelpItem(
+                question: "How do I record the screen?",
+                answer: "Hover over a running device and click the record button, or open its ••• menu and choose Record Screen. EmuHub records via adb screenrecord (Android caps recordings at 3 minutes) and saves the MP4 to your Desktop, revealing it in Finder when you stop. A red dot appears on the device tile while recording."
+            ),
+            HelpItem(
+                question: "How do I view a device's logs (logcat)?",
+                answer: "Open a device's ••• menu and choose View Logs…. A live logcat panel streams the device's output with color-coded priority badges. Filter by minimum level (Verbose → Fatal), search any tag or message, pause or resume the stream, clear it, or copy/save the visible lines to your Desktop. The view keeps the most recent 5,000 lines."
+            ),
+            HelpItem(
+                question: "What else is in the ••• actions menu?",
+                answer: "Every running emulator or authorized device has a ••• menu (also available via right-click): Reboot (normal, into Recovery, or into Bootloader), Open adb Shell to drop into an interactive shell in Terminal, Manage Apps to launch / force-stop / clear-data / uninstall installed packages, and Copy Serial or Copy Wi-Fi Address."
+            ),
+            HelpItem(
                 question: "How do I install an APK?",
                 answer: "Drag an APK file from Finder and drop it onto any running device or emulator row in the Running section. A progress indicator appears while adb installs the package. You'll see a success banner when it's done, or an error message if the install fails."
             ),
             HelpItem(
                 question: "Can I control physical Android devices through EmuHub?",
-                answer: "Physical devices appear in the Running section for visibility. Screenshot and APK install work on physical devices just like emulators. However, Start and Stop actions are emulator-only — EmuHub won't send power commands to real hardware."
+                answer: "Yes — authorized physical devices support the same actions as emulators: screenshot, screen recording, APK install, View Logs, Reboot, Open adb Shell, Manage Apps, and copying the serial/Wi-Fi address. The only emulator-only actions are Launch and Stop, since EmuHub won't send power commands to real hardware."
             ),
         ]
     ),
@@ -155,14 +171,7 @@ private struct HelpSectionView: View {
         VStack(alignment: .leading, spacing: 10) {
             // Section header
             HStack(spacing: 7) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(section.iconColor.opacity(0.12))
-                        .frame(width: 20, height: 20)
-                    Image(systemName: section.icon)
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(section.iconColor)
-                }
+                GlassIconTile(systemImage: section.icon, color: section.iconColor, size: 20)
                 Text(section.title.uppercased())
                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
@@ -170,17 +179,13 @@ private struct HelpSectionView: View {
             }
 
             // Accordion items
-            VStack(spacing: 1) {
-                ForEach(section.items) { item in
-                    HelpAccordionRow(item: item)
+            GlassGroup(cornerRadius: 12) {
+                VStack(spacing: 1) {
+                    ForEach(section.items) { item in
+                        HelpAccordionRow(item: item)
+                    }
                 }
             }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -244,51 +249,40 @@ private struct SupportLinksView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(spacing: 7) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 5, style: .continuous)
-                        .fill(Color.purple.opacity(0.12))
-                        .frame(width: 20, height: 20)
-                    Image(systemName: "ellipsis.bubble.fill")
-                        .font(.system(size: 10, weight: .semibold))
-                        .foregroundStyle(.purple)
-                }
+                GlassIconTile(systemImage: "ellipsis.bubble.fill", color: .purple, size: 20)
                 Text("Still Need Help?".uppercased())
                     .font(.system(size: 10.5, weight: .semibold, design: .rounded))
                     .foregroundStyle(.secondary)
                     .kerning(0.5)
             }
 
-            VStack(spacing: 1) {
-                SupportLinkRow(
-                    icon: "ladybug.fill",
-                    iconColor: .red,
-                    label: "Report a Bug",
-                    subtitle: "Open a GitHub issue",
-                    url: "https://github.com/mchigangawa/EmuHub/issues/new"
-                )
-                Divider().padding(.leading, 44)
-                SupportLinkRow(
-                    icon: "lightbulb.fill",
-                    iconColor: .yellow,
-                    label: "Request a Feature",
-                    subtitle: "Share your ideas on GitHub",
-                    url: "https://github.com/mchigangawa/EmuHub/issues/new"
-                )
-                Divider().padding(.leading, 44)
-                SupportLinkRow(
-                    icon: "doc.text.fill",
-                    iconColor: .blue,
-                    label: "View Changelog",
-                    subtitle: "See what's new in each release",
-                    url: "https://github.com/mchigangawa/EmuHub/blob/main/CHANGELOG.md"
-                )
+            GlassGroup(cornerRadius: 12) {
+                VStack(spacing: 1) {
+                    SupportLinkRow(
+                        icon: "ladybug.fill",
+                        iconColor: .red,
+                        label: "Report a Bug",
+                        subtitle: "Open a GitHub issue",
+                        url: "https://github.com/mchigangawa/EmuHub/issues/new"
+                    )
+                    Divider().padding(.leading, 44)
+                    SupportLinkRow(
+                        icon: "lightbulb.fill",
+                        iconColor: .yellow,
+                        label: "Request a Feature",
+                        subtitle: "Share your ideas on GitHub",
+                        url: "https://github.com/mchigangawa/EmuHub/issues/new"
+                    )
+                    Divider().padding(.leading, 44)
+                    SupportLinkRow(
+                        icon: "doc.text.fill",
+                        iconColor: .blue,
+                        label: "View Changelog",
+                        subtitle: "See what's new in each release",
+                        url: "https://github.com/mchigangawa/EmuHub/blob/main/CHANGELOG.md"
+                    )
+                }
             }
-            .background(.background.secondary, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 10, style: .continuous)
-                    .strokeBorder(Color.primary.opacity(0.06), lineWidth: 1)
-            )
         }
         .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -305,14 +299,7 @@ private struct SupportLinkRow: View {
     var body: some View {
         Link(destination: URL(string: url)!) {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(iconColor.opacity(0.12))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(iconColor)
-                }
+                GlassIconTile(systemImage: icon, color: iconColor, size: 28)
 
                 VStack(alignment: .leading, spacing: 1) {
                     Text(label)

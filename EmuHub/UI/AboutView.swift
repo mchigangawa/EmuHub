@@ -89,13 +89,15 @@ struct AboutPage: View {
                     AboutSectionLabel("Features")
 
                     let features: [(String, Color, String)] = [
-                        ("square.stack.3d.up.fill", .blue, "List, launch, cold-boot, and wipe AVDs"),
+                        ("square.stack.3d.up.fill", .blue, "List, launch, cold-boot, wipe, and delete AVDs"),
                         ("plus.circle.fill", .indigo, "Create new AVDs without Android Studio"),
                         ("iphone", .blue, "Physical device visibility with model resolution"),
-                        ("camera.fill", .purple, "Screenshot capture saved to Desktop"),
+                        ("camera.fill", .purple, "Screenshot and screen recording to Desktop"),
+                        ("doc.text.magnifyingglass", .teal, "Live logcat viewer with filtering and export"),
+                        ("square.grid.2x2", .pink, "Reboot, adb shell, and per-app management"),
                         ("arrow.down.app.fill", .orange, "APK drag-and-drop install"),
                         ("bolt.circle.fill", .green, "Auto-refresh with configurable interval"),
-                        ("arrow.trianglehead.2.clockwise.rotate.90.circle", .teal, "In-app update checker via GitHub Releases"),
+                        ("arrow.trianglehead.2.clockwise.rotate.90.circle", .cyan, "In-app update checker via GitHub Releases"),
                     ]
 
                     VStack(spacing: 6) {
@@ -196,14 +198,7 @@ private struct FeatureRow: View {
 
     var body: some View {
         HStack(spacing: 10) {
-            ZStack {
-                RoundedRectangle(cornerRadius: 6, style: .continuous)
-                    .fill(color.opacity(0.1))
-                    .frame(width: 24, height: 24)
-                Image(systemName: icon)
-                    .font(.system(size: 10.5, weight: .semibold))
-                    .foregroundStyle(color)
-            }
+            GlassIconTile(systemImage: icon, color: color, size: 24)
             Text(label)
                 .font(.system(size: 12))
                 .foregroundStyle(.primary)
@@ -242,14 +237,7 @@ private struct AboutLinkRow: View {
     var body: some View {
         Link(destination: URL(string: url)!) {
             HStack(spacing: 12) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 7, style: .continuous)
-                        .fill(color.opacity(0.1))
-                        .frame(width: 28, height: 28)
-                    Image(systemName: icon)
-                        .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(color)
-                }
+                GlassIconTile(systemImage: icon, color: color, size: 28)
                 Text(label)
                     .font(.system(size: 13))
                     .foregroundStyle(.primary)
