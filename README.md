@@ -33,12 +33,37 @@ Each running emulator and authorized physical device exposes a **`•••` act
 
 - **Screenshot** — captures the current screen and saves a PNG to your Desktop, opening it in Finder
 - **Screen recording** — records the screen via `adb shell screenrecord` (Android caps this at 3 minutes), saves the MP4 to your Desktop, and reveals it in Finder; a red indicator shows on the device tile while recording
-- **Install APK** — drag-and-drop an `.apk` onto the device card to install it (`adb install -r`)
+- **Install APK / push files** — drag-and-drop an `.apk` onto the device card to install it (`adb install -r`); drop any other file to push it to the device's `Download` folder. The Manage Apps panel accepts APK drops too.
 - **Reboot** — reboot normally, into **Recovery**, or into **Bootloader** (`adb reboot`)
 - **Open adb Shell** — opens Terminal with an interactive `adb -s <serial> shell` session ready to go
-- **Manage Apps** — opens a panel listing user-installed packages, each with **Launch**, **Force Stop**, **Clear Data**, and **Uninstall** actions
-- **View Logs** — opens a live `adb logcat` viewer with color-coded priority badges, a minimum-level filter (Verbose → Fatal), tag/message search, pause/resume, clear, and copy- or save-to-Desktop export (rolling 5,000-line buffer)
+- **Manage Apps** — opens a panel listing user-installed packages, each with **Launch**, **Force Stop**, **Clear Data**, **Open App Info on Device**, **Copy Package Name**, and **Uninstall** (with confirmation)
+- **View Logs** — opens a live `adb logcat` viewer with color-coded priority badges, a minimum-level filter (Verbose → Fatal), tag/message search, pause/resume, clear, and copy- or save-to-Desktop export (rolling 5,000-line buffer). An **app picker** narrows the stream to a single package: EmuHub resolves that app's process IDs on the device and re-resolves them periodically, so the filter survives the app restarting under a new PID and begins working by itself if you pick an app before launching it.
 - **Copy Serial / Copy Wi-Fi Address** — copies the device serial (or wireless address) to the clipboard
+
+### Device Details
+Double-click a device card (or choose **Device Details…** from its `•••` menu) to open a live read-out, gathered in a single adb round trip:
+
+- **Battery** — charge level, charging state, and temperature, with a capacity meter
+- **Storage** — `/data` usage and free space, with a meter that turns amber when nearly full
+- **Display** — resolution and density
+- **Hardware & OS** — manufacturer, model, CPU ABI, Android version, and API level
+- **Network** — the device's Wi-Fi address, one click to copy
+- **Uptime** and connection type (USB / Wi-Fi)
+
+The same panel carries the actions that are tedious to type by hand:
+
+- **Rotation** — force portrait, landscape, or either flipped orientation, or return control to the accelerometer
+- **Dark mode** — read and toggle the device's UI night mode
+- **Open URL or deep link** — fire a `VIEW` intent for an `https://` or custom-scheme link
+- **Type text / Send Mac clipboard** — push text straight into the focused field on the device
+- **Keys** — Home, Back, Recents, Power, Wake, and volume key events
+
+### Wireless Debugging
+Attach a physical device without a cable, from the Wi-Fi button in the toolbar:
+
+- **Pair New** — Android 11+ pairing with the six-digit code. The panel spells out that the pairing port and the connect port are different, which is the usual reason pairing looks like it failed.
+- **Connect** — attach a previously paired device by address (port defaults to 5555)
+- **Switch to Wi-Fi** — for a device already on USB, this runs `adb tcpip`, reads the device's own IP address, and reconnects over the network so the cable can be unplugged. Wireless devices get a matching **Disconnect Wi-Fi** action.
 
 ### Create & Manage AVDs
 - Create a new AVD in-app from any installed system image and hardware profile (via `avdmanager`)
@@ -48,9 +73,15 @@ Each running emulator and authorized physical device exposes a **`•••` act
 
 ### Design
 - Modern translucent (glassy) menu-bar UI with frosted-glass device cards, vibrancy background, and tinted device tiles that adapt to light and dark mode
-- The glass treatment carries through every screen — Settings, Help, About, Software Update, and New AVD use the same frosted group cards, tinted glass icon tiles, and translucent input fields
+- The glass treatment carries through every screen — Settings, Help, About, Software Update, New AVD, Device Details, and Wireless Debugging share the same frosted group cards, tinted glass icon tiles, and translucent input fields
+- Spacing, radii, type, motion, and colour come from one shared token set, and every search field, icon button, hover pill, section header, and panel header in the app is the same shared control
+- **Hover labels** — icon-only buttons name their feature shortly after the pointer settles, in the app's own style rather than waiting on the slower system tooltip
+- **Resizable popover** — drag the grip in the bottom-right corner to resize between 380×460 and 760×900. The size is remembered between launches; double-click the grip (or use Settings → Appearance → Reset) to restore the default.
+- **Unified search** — one box filters both connected devices and AVDs
+- **Launch feedback** — a starting AVD immediately shows a placeholder row with a spinner, and an AVD that is already running is marked rather than offering a Launch that could only fail
 
-### Keyboard Shortcut
+### Keyboard Shortcuts
+- **⌘R** refresh · **⌘[** back · **Esc** closes the menu, then an open panel, then the current page
 - Press **⌥⌘X** (Option + Command + X) from anywhere to open or close the EmuHub popover
 - Works globally when EmuHub is in the background (requires Accessibility permission in System Settings → Privacy & Security)
 - Also works locally to dismiss the popover when it is already open (no extra permission needed)

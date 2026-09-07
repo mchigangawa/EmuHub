@@ -19,6 +19,40 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ---
 
+## [1.4.0] - 2026-09-07
+
+### Added
+- **Device Details panel** — double-click a device card (or pick **Device Details…** from its `•••` menu) to open a live read-out gathered in a single `adb shell` round trip: battery level, charge state and temperature; `/data` storage use with a capacity meter; display resolution and density; manufacturer, model, ABI, Android version and API level; Wi-Fi address; uptime; and the connection type. The panel also carries the developer actions that are tedious to type by hand:
+  - **Rotation** — force portrait, landscape, or either flipped orientation, or hand control back to the accelerometer.
+  - **Dark mode** — read and toggle the device's UI night mode.
+  - **Open URL or deep link** — fire a `VIEW` intent at the device for `https://` or custom-scheme links.
+  - **Type text / Send Mac clipboard** — push text straight into the device's focused field.
+  - **Keys** — Home, Back, Recents, Power, Wake, and volume key events.
+- **Wireless debugging** — a Wi-Fi button in the Home toolbar opens a panel to attach a device without a cable:
+  - **Pair New** walks through Android 11+ pairing with the six-digit code, and explains that the pairing port and the connect port are different (the most common reason pairing appears to fail).
+  - **Connect** attaches a previously paired device by address, defaulting to port 5555.
+  - **Switch to Wi-Fi** in a USB device's `•••` menu runs `adb tcpip`, reads the device's own IP, and reconnects over the network so the cable can be unplugged. Wireless devices gain a matching **Disconnect Wi-Fi** action.
+- **Push any file to a device** — dropping a non-APK file on a device card now pushes it to the device's `Download` folder; APKs still install as before. The App Manager panel accepts APK drops too, so a build can be installed without leaving it.
+- **Hover labels on icon controls** — icon-only buttons now name their feature shortly after the pointer settles on them, in the app's own style rather than waiting on the much slower system tooltip. Labels are drawn from a single layer at the root of the popover so they are never clipped by a scroll view or a glass group.
+- **Resizable popover** — drag the grip in the bottom-right corner to resize the window between 380×460 and 760×900; the size is remembered between launches, and double-clicking the grip (or **Reset** in Settings → Appearance) restores the default.
+- **Emulator "Starting…" state** — launching an AVD immediately shows a placeholder row under Running with a spinner, and the AVD's own card switches to a **Starting** badge, so the roughly ten seconds before an emulator registers with adb no longer look like nothing happened.
+- **App Manager additions** — packages are now shown as a readable name over their namespace, with a one-click Launch on hover, **Open App Info on Device**, **Copy Package Name**, a confirmation prompt before uninstalling, and a reload button.
+- **Logcat: show only one app** — an app picker in the logcat toolbar narrows the stream to a single package. EmuHub resolves the app's process IDs on the device and re-resolves them every few seconds, so the filter survives the app being killed and relaunched under a new PID, and starts working on its own if you select an app before launching it. `:subprocess` workers (`com.example.app:remote`) are included, while a sibling package that merely shares the prefix (`com.example.app.debug`) is not. A dot on the picker shows green while the app has a live process and amber while it doesn't.
+- **Logcat additions** — a timestamp toggle, a line counter showing how many of the buffered lines match the current filter, and PID matching in the search box.
+
+### Changed
+- **Unified search** — the Home search box now filters connected devices as well as AVDs, and is always visible in a new toolbar strip instead of having to be revealed from a section header. The Wi-Fi connect and New AVD actions moved into that toolbar.
+- **Running AVDs are marked, not offered again** — an AVD that already has a live emulator shows a **Running** badge and recedes, rather than presenting a Launch button that could only fail.
+- **Design system** — spacing, radii, type, motion, and semantic colour now come from shared tokens (`Theme`), and the search fields, round icon buttons, hover-expanding pills, section headers, and panel chrome that each screen had grown its own copy of are now single shared controls (`Controls.swift`). Overlay panels are modelled as one value, so only one can ever be on screen.
+- **Escape unwinds one level at a time** — closing the menu, then an open panel, then returning from a page. ⌘R refreshes and ⌘[ goes back.
+- **Errors can be dismissed** — the error banner now has a close button instead of persisting until something else clears it.
+- **Physical device badges** show the connection type with a matching USB or Wi-Fi glyph.
+
+### Fixed
+- The unit test target did not compile. Every type in the app is main-actor isolated (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`) while swift-testing runs test functions as nonisolated, so all 30-odd existing assertions failed to build. The suites are now annotated `@MainActor`.
+
+---
+
 ## [1.3.0] - 2026-06-30
 
 ### Added

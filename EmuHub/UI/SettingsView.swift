@@ -11,10 +11,15 @@ struct SettingsView: View {
     @EnvironmentObject var state: AppState
     var preferredWidth: CGFloat? = 560
 
+    // Mirrors the popover's own persisted size so Settings can report and reset it.
+    @AppStorage("popoverWidth") private var popoverWidth: Double = PopoverSize.defaultWidth
+    @AppStorage("popoverHeight") private var popoverHeight: Double = PopoverSize.defaultHeight
+
     var body: some View {
         ScrollView(showsIndicators: false) {
             VStack(spacing: 22) {
                 generalSection
+                appearanceSection
                 sdkSection
                 emulatorSection
                 refreshSection
@@ -52,6 +57,36 @@ struct SettingsView: View {
                 .padding(.horizontal, 16)
                 .padding(.bottom, 10)
                 .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    // MARK: - Appearance
+
+    private var appearanceSection: some View {
+        PrefsSection(title: "Appearance") {
+            PrefsRow(
+                icon: "arrow.up.left.and.arrow.down.right",
+                iconColor: .teal,
+                title: "Popover Size",
+                description: "Drag the grip in the bottom-right corner to resize"
+            ) {
+                HStack(spacing: Theme.Space.md) {
+                    Text("\(Int(popoverWidth)) × \(Int(popoverHeight))")
+                        .font(.system(size: 12, weight: .medium, design: .rounded))
+                        .foregroundStyle(.secondary)
+                        .monospacedDigit()
+
+                    Button("Reset") {
+                        popoverWidth = PopoverSize.defaultWidth
+                        popoverHeight = PopoverSize.defaultHeight
+                    }
+                    .buttonStyle(.bordered)
+                    .controlSize(.small)
+                    .font(.system(size: 11))
+                    .disabled(popoverWidth == PopoverSize.defaultWidth
+                              && popoverHeight == PopoverSize.defaultHeight)
+                }
             }
         }
     }
@@ -186,7 +221,7 @@ struct SettingsView: View {
 
                     if let last = state.lastRefreshAt {
                         TimelineView(.periodic(from: .now, by: 10)) { _ in
-                            Text("Last: \(relativeTime(from: last))")
+                            Text("Last: \(RelativeTime.string(from: last))")
                                 .font(.caption)
                                 .foregroundStyle(.tertiary)
                         }
@@ -206,12 +241,6 @@ struct SettingsView: View {
         )
     }
 
-    private func relativeTime(from date: Date) -> String {
-        let secs = Int(-date.timeIntervalSinceNow)
-        if secs < 5  { return "just now" }
-        if secs < 60 { return "\(secs)s ago" }
-        return "\(secs / 60)m ago"
-    }
 }
 
 // MARK: - Reusable Components

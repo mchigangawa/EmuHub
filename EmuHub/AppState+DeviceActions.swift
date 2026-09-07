@@ -156,6 +156,12 @@ extension AppState {
         }
     }
 
+    func openAppSettings(device: RunningDevice, package: String) async {
+        await runPackageAction(device: device, package: package, feedback: "Opened App Info for \(package)") {
+            try await self.adbService.openAppSettings(adbPath: $0, serial: device.serial, package: package)
+        }
+    }
+
     func uninstallApp(device: RunningDevice, package: String) async {
         await runPackageAction(device: device, package: package, feedback: "Uninstalled \(package)") {
             try await self.adbService.uninstall(adbPath: $0, serial: device.serial, package: package)
