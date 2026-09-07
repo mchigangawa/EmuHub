@@ -48,6 +48,13 @@ final class AppState: ObservableObject {
     @Published var logcatError: String?
     @Published var isLogcatPaused = false
 
+    // Logcat "only this app" filter
+    @Published var logcatPackages: [String] = []           // apps offered in the filter menu
+    @Published var isLoadingLogcatPackages = false
+    @Published var logcatPackageFilter: String?            // nil = show every app
+    /// PIDs the filtered app currently occupies. Empty means it isn't running.
+    @Published var logcatFilterPIDs: Set<String> = []
+
     // Device inspector
     @Published var inspectorDevice: RunningDevice?         // device whose details are showing
     @Published var deviceInfo: DeviceInfo?
@@ -90,6 +97,10 @@ final class AppState: ObservableObject {
 
     private var refreshTask: Task<Void, Never>?
     private var actionFeedbackTask: Task<Void, Never>?
+
+    /// Re-resolves the filtered app's PIDs while an "only this app" filter is on,
+    /// so the filter survives the app restarting under a new PID.
+    var logcatPIDTask: Task<Void, Never>?
 
     private var hotKeyRef: EventHotKeyRef?
     private var hotKeyEventHandler: EventHandlerRef?

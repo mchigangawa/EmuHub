@@ -293,3 +293,57 @@ extension AdbService {
         ])
     }
 }
+
+// MARK: - Process Lookup
+
+extension AdbService {
+    /// Resolves the process IDs an app is currently running under.
+    ///
+    /// Both lookups are issued in one round trip because they cover different
+    /// gaps: `pidof` is the cheap, exact path but only matches the main process,
+    /// while the `ps` scan also picks up the `:subprocess` workers an app spawns
+    /// (`com.example.app:remote`) whose logs belong to the same app. `grep` runs
+    /// on the device so only the handful of relevant rows cross the wire.
+    ///
+    /// Returns an empty set when the app isn't running — a normal state the
+    /// caller is expected to poll through, not an error.
+    func processIDs(adbPath: String, serial: String, package: String) async throws -> Set<String> {
+        let script = "pidof \(package) 2>/dev/null; "
+                   + "ps -A -o PID,NAME 2>/dev/null | grep \(package) 2>/dev/null"
+
+        // A device where neither command matches exits non-zero; that just means
+        // the app isn't running.
+        guard let res = try? await Shell.run(adbPath, ["-s", serial, "shell", script]) else {
+            return []
+        }
+        return Self.parseProcessIDs(res.stdout, package: package)
+    }
+
+    /// Parses the combined `pidof` + `ps` output into a PID set.
+    /// Exposed for testing.
+    static func parseProcessIDs(_ output: String, package: String) -> Set<String> {
+        var pids: Set<String> = []
+
+        for raw in output.split(whereSeparator: \.isNewline) {
+            let fields = raw.split(whereSeparator: { $0 == " " || $0 == "\t" }).map(String.init)
+            guard !fields.isEmpty else { continue }
+
+            // A bare line of numbers is pidof's output: every field is a PID.
+            if fields.allSatisfy({ Int($0) != nil }) {
+                pids.formUnion(fields)
+                continue
+            }
+
+            // Otherwise it's a `ps` row: "<pid> <name>". Accept only an exact
+            // package match or one of its ":subprocess" workers, so a grep hit on
+            // a longer package (com.example.app.debug) can't leak in.
+            guard fields.count >= 2, Int(fields[0]) != nil else { continue }
+            let name = fields[1]
+            if name == package || name.hasPrefix("\(package):") {
+                pids.insert(fields[0])
+            }
+        }
+
+        return pids
+    }
+}

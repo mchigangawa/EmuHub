@@ -460,3 +460,63 @@ struct RecordingSizeTests {
         #expect(parts[1] % 2 == 0)
     }
 }
+
+// MARK: - Logcat app-filter PID resolution
+
+@MainActor
+struct ProcessIDParsingTests {
+
+    @Test("pidof output alone yields the app's main process")
+    func pidofOnly() {
+        let pids = AdbService.parseProcessIDs("12345\n", package: "com.example.app")
+        #expect(pids == ["12345"])
+    }
+
+    @Test("pidof reporting several processes returns all of them")
+    func pidofMultiple() {
+        let pids = AdbService.parseProcessIDs("12345 12346 12347\n", package: "com.example.app")
+        #expect(pids == ["12345", "12346", "12347"])
+    }
+
+    @Test("ps rows add the app's :subprocess workers, which pidof misses")
+    func subprocessesIncluded() {
+        let output = """
+        12345
+        12345 com.example.app
+        12400 com.example.app:remote
+        12401 com.example.app:pushservice
+        """
+        let pids = AdbService.parseProcessIDs(output, package: "com.example.app")
+        #expect(pids == ["12345", "12400", "12401"])
+    }
+
+    @Test("A grep hit on a longer package name is not treated as a match")
+    func siblingPackagesExcluded() {
+        // `grep com.example.app` also matches these rows on the device; only an
+        // exact name or a ":subprocess" of it belongs to the filtered app.
+        let output = """
+        12345 com.example.app
+        99999 com.example.app.debug
+        88888 com.example.apparel
+        """
+        let pids = AdbService.parseProcessIDs(output, package: "com.example.app")
+        #expect(pids == ["12345"])
+    }
+
+    @Test("An app that isn't running resolves to no PIDs rather than an error")
+    func notRunning() {
+        #expect(AdbService.parseProcessIDs("", package: "com.example.app").isEmpty)
+        #expect(AdbService.parseProcessIDs("\n\n", package: "com.example.app").isEmpty)
+    }
+
+    @Test("Malformed or header rows are skipped")
+    func malformedRowsIgnored() {
+        let output = """
+        PID NAME
+        notapid com.example.app
+        12345 com.example.app
+        """
+        let pids = AdbService.parseProcessIDs(output, package: "com.example.app")
+        #expect(pids == ["12345"])
+    }
+}

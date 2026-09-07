@@ -21,11 +21,22 @@ struct LogcatView: View {
     private var filtered: [LogEntry] {
         state.logEntries.filter { entry in
             guard entry.level.priority >= minLevel.priority else { return false }
+            // An app filter narrows to the PIDs that app currently occupies; while
+            // it isn't running there are none, so nothing matches.
+            if state.logcatPackageFilter != nil {
+                guard state.logcatFilterPIDs.contains(entry.pid) else { return false }
+            }
             guard !search.isEmpty else { return true }
             return entry.tag.localizedCaseInsensitiveContains(search)
                 || entry.message.localizedCaseInsensitiveContains(search)
                 || entry.pid == search
         }
+    }
+
+    /// The filtered app is selected but has no live process, so the empty view
+    /// should explain that rather than looking like the filter is broken.
+    private var isWaitingForApp: Bool {
+        state.logcatPackageFilter != nil && state.logcatFilterPIDs.isEmpty
     }
 
     /// Plain-text rendering of the currently visible (filtered) lines.
@@ -75,11 +86,26 @@ struct LogcatView: View {
     // MARK: Toolbar
 
     private var toolbar: some View {
-        HStack(spacing: Theme.Space.md) {
-            LevelFilterMenu(minLevel: $minLevel)
+        VStack(spacing: Theme.Space.md) {
+            HStack(spacing: Theme.Space.md) {
+                LevelFilterMenu(minLevel: $minLevel)
+
+                AppFilterMenu()
+                    .environmentObject(state)
+
+                Spacer(minLength: 0)
+
+                actionButtons
+            }
 
             SearchField(text: $search, placeholder: "Filter tag, message, or PID…", shape: .capsule)
+        }
+        .pageGutter()
+        .padding(.top, Theme.Space.md)
+    }
 
+    private var actionButtons: some View {
+        HStack(spacing: Theme.Space.md) {
             IconButton(
                 systemImage: state.isLogcatPaused ? "play.fill" : "pause.fill",
                 help: state.isLogcatPaused ? "Resume" : "Pause",
@@ -104,8 +130,6 @@ struct LogcatView: View {
             ExportMenu(disabled: filtered.isEmpty, text: renderedText)
                 .environmentObject(state)
         }
-        .pageGutter()
-        .padding(.top, Theme.Space.md)
     }
 
     // MARK: Content
@@ -115,6 +139,11 @@ struct LogcatView: View {
         if filtered.isEmpty {
             if state.logEntries.isEmpty && state.logcatError == nil {
                 PanelMessage(showsProgress: true, message: "Waiting for logs…")
+            } else if isWaitingForApp, let package = state.logcatPackageFilter {
+                PanelMessage(
+                    systemImage: "moon.zzz",
+                    message: "\(package) isn't running.\nIts logs will appear here as soon as it starts."
+                )
             } else {
                 PanelMessage(
                     systemImage: "line.3.horizontal.decrease.circle",
@@ -186,6 +215,89 @@ private struct LevelFilterMenu: View {
         .menuIndicator(.hidden)
         .fixedSize()
         .tooltip("Show this level and above")
+    }
+}
+
+/// Narrows the stream to a single app. Shows the app's short name once chosen,
+/// with a live dot while it has a running process — the quickest signal that the
+/// filter is actually matching something.
+private struct AppFilterMenu: View {
+    @EnvironmentObject var state: AppState
+
+    private var selected: String? { state.logcatPackageFilter }
+
+    /// Package names are too long for the toolbar, and their last component is
+    /// what identifies the app anyway.
+    private var shortName: String? {
+        selected?.split(separator: ".").last.map(String.init)
+    }
+
+    private var isLive: Bool { !state.logcatFilterPIDs.isEmpty }
+
+    var body: some View {
+        Menu {
+            Button {
+                state.setLogcatPackageFilter(nil)
+            } label: {
+                if selected == nil {
+                    Label("All apps", systemImage: "checkmark")
+                } else {
+                    Text("All apps")
+                }
+            }
+
+            if !state.logcatPackages.isEmpty {
+                Divider()
+                ForEach(state.logcatPackages, id: \.self) { package in
+                    Button {
+                        state.setLogcatPackageFilter(package)
+                    } label: {
+                        if selected == package {
+                            Label(package, systemImage: "checkmark")
+                        } else {
+                            Text(package)
+                        }
+                    }
+                }
+            }
+        } label: {
+            HStack(spacing: 5) {
+                if state.isLoadingLogcatPackages && state.logcatPackages.isEmpty {
+                    ProgressView().controlSize(.mini).scaleEffect(0.6)
+                } else if selected != nil {
+                    StatusDot(color: isLive ? Theme.Palette.emulator : Theme.Palette.warning,
+                              size: 6)
+                } else {
+                    Image(systemName: "square.grid.2x2")
+                        .font(.system(size: 9, weight: .semibold))
+                        .foregroundStyle(.secondary)
+                }
+
+                Text(shortName ?? "All apps")
+                    .font(.system(size: 11, weight: .medium))
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    // A long app name must not push the action buttons off the
+                    // toolbar at the popover's narrowest width.
+                    .frame(maxWidth: 96, alignment: .leading)
+                    .fixedSize(horizontal: false, vertical: true)
+
+                Image(systemName: "chevron.down")
+                    .font(.system(size: 8, weight: .bold))
+                    .foregroundStyle(.tertiary)
+            }
+            .padding(.horizontal, 9)
+            .padding(.vertical, Theme.Space.sm)
+            .background(Capsule().fill(.ultraThinMaterial))
+            .overlay(Capsule().strokeBorder(
+                selected == nil ? Color.primary.opacity(0.08)
+                                : Theme.Palette.emulator.opacity(0.35),
+                lineWidth: 1))
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .tooltip(selected.map { "Showing only \($0)" } ?? "Show only one app's logs")
     }
 }
 

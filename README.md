@@ -37,7 +37,7 @@ Each running emulator and authorized physical device exposes a **`•••` act
 - **Reboot** — reboot normally, into **Recovery**, or into **Bootloader** (`adb reboot`)
 - **Open adb Shell** — opens Terminal with an interactive `adb -s <serial> shell` session ready to go
 - **Manage Apps** — opens a panel listing user-installed packages, each with **Launch**, **Force Stop**, **Clear Data**, **Open App Info on Device**, **Copy Package Name**, and **Uninstall** (with confirmation)
-- **View Logs** — opens a live `adb logcat` viewer with color-coded priority badges, a minimum-level filter (Verbose → Fatal), tag/message search, pause/resume, clear, and copy- or save-to-Desktop export (rolling 5,000-line buffer)
+- **View Logs** — opens a live `adb logcat` viewer with color-coded priority badges, a minimum-level filter (Verbose → Fatal), tag/message search, pause/resume, clear, and copy- or save-to-Desktop export (rolling 5,000-line buffer). An **app picker** narrows the stream to a single package: EmuHub resolves that app's process IDs on the device and re-resolves them periodically, so the filter survives the app restarting under a new PID and begins working by itself if you pick an app before launching it.
 - **Copy Serial / Copy Wi-Fi Address** — copies the device serial (or wireless address) to the clipboard
 
 ### Device Details
