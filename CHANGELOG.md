@@ -9,6 +9,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Planned
+- Developer ID signing and macOS notarization
+- Homebrew cask installation
+- ADB port forwarding management panel
+- Clipboard sync between Mac and connected device
+- Advanced emulator controls (snapshot save/load)
+- Notification when a long-booting emulator becomes ready
+
+---
+
+## [1.4.0] - 2026-09-07
+
 ### Added
 - **Device Details panel** — double-click a device card (or pick **Device Details…** from its `•••` menu) to open a live read-out gathered in a single `adb shell` round trip: battery level, charge state and temperature; `/data` storage use with a capacity meter; display resolution and density; manufacturer, model, ABI, Android version and API level; Wi-Fi address; uptime; and the connection type. The panel also carries the developer actions that are tedious to type by hand:
   - **Rotation** — force portrait, landscape, or either flipped orientation, or hand control back to the accelerometer.
@@ -37,14 +49,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 - The unit test target did not compile. Every type in the app is main-actor isolated (`SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`) while swift-testing runs test functions as nonisolated, so all 30-odd existing assertions failed to build. The suites are now annotated `@MainActor`.
-
-### Planned
-- Developer ID signing and macOS notarization
-- Homebrew cask installation
-- ADB port forwarding management panel
-- Clipboard sync between Mac and connected device
-- Advanced emulator controls (snapshot save/load)
-- Notification when a long-booting emulator becomes ready
 
 ---
 
