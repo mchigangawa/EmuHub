@@ -10,148 +10,62 @@ import SwiftUI
 struct HomeView: View {
     @EnvironmentObject var state: AppState
     let onNavigate: (AppRoute) -> Void
-    @State private var avdSearch = ""
-    @State private var searchActive = false
 
-    private var filteredAVDs: [AVD] {
-        guard !avdSearch.isEmpty else { return state.avds }
-        return state.avds.filter {
-            $0.friendlyName.localizedCaseInsensitiveContains(avdSearch) ||
-            $0.name.localizedCaseInsensitiveContains(avdSearch)
+    @State private var search = ""
+
+    /// One search box filters both sections — previously only AVDs were
+    /// searchable, which meant the box did nothing when the thing you were
+    /// looking for was an attached device.
+    private var filteredDevices: [RunningDevice] {
+        guard !search.isEmpty else { return state.running }
+        return state.running.filter {
+            $0.displayName.localizedCaseInsensitiveContains(search) ||
+            $0.serial.localizedCaseInsensitiveContains(search)
         }
     }
 
-    private func toggleSearch() {
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
-            searchActive.toggle()
-            if !searchActive { avdSearch = "" }
+    private var filteredAVDs: [AVD] {
+        guard !search.isEmpty else { return state.avds }
+        return state.avds.filter {
+            $0.friendlyName.localizedCaseInsensitiveContains(search) ||
+            $0.name.localizedCaseInsensitiveContains(search)
         }
+    }
+
+    /// AVDs we've launched that haven't registered with adb yet, shown as
+    /// placeholder rows in Running so a launch never looks like it did nothing.
+    private var bootingAVDs: [AVD] {
+        state.avds.filter { state.bootingAVDs.contains($0.name) }
     }
 
     var body: some View {
         VStack(spacing: 0) {
+            HomeToolbar(
+                search: $search,
+                onConnectDevice: { state.openWirelessSheet() },
+                onNewAVD: { onNavigate(.createAVD) }
+            )
+
             ScrollView(showsIndicators: false) {
                 VStack(spacing: 0) {
+                    banners
 
-                    // Action success banner
-                    if let action = state.lastAction {
-                        ActionBanner(message: action)
-                            .padding(.horizontal, 14)
-                            .padding(.top, 12)
-                            .padding(.bottom, 4)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    runningSection
 
-                    // Error banner
-                    if let error = state.lastError {
-                        ErrorBanner(message: error)
-                            .padding(.horizontal, 14)
-                            .padding(.top, state.lastAction == nil ? 12 : 4)
-                            .padding(.bottom, 4)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
+                    Hairline()
+                        .padding(.vertical, Theme.Space.xl)
 
-                    // Running section
-                    SectionHeader(
-                        icon: "bolt.circle.fill", title: "Running",
-                        color: .green, count: state.running.count,
-                        buttons: []
-                    )
-                    .padding(.horizontal, 14)
-                    .padding(.top, 14)
-                    .padding(.bottom, 8)
+                    availableSection
 
-                    if state.running.isEmpty {
-                        EmptyStateCard(icon: "moon.zzz", message: "No devices connected")
-                            .padding(.horizontal, 14)
-                    } else {
-                        VStack(spacing: 6) {
-                            ForEach(state.running) { device in
-                                RunningDeviceCard(
-                                    device: device,
-                                    isInstalling: state.installingAPK.contains(device.serial),
-                                    onStop: { Task { await state.stop(device: device) } },
-                                    onScreenshot: { Task { await state.captureScreenshot(device: device) } },
-                                    onInstallAPK: { url in Task { await state.installAPK(device: device, url: url) } }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                    }
-
-                    // Divider
-                    Rectangle()
-                        .fill(Color.primary.opacity(0.06))
-                        .frame(height: 1)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 14)
-
-                    // Available AVDs section
-                    SectionHeader(
-                        icon: "square.stack.3d.up.fill", title: "Available",
-                        color: .blue, count: state.avds.count,
-                        buttons: state.avds.isEmpty ? [] : [
-                            SectionHeaderButton(
-                                id: "search", icon: "magnifyingglass",
-                                help: "Search AVDs", active: searchActive,
-                                action: toggleSearch
-                            ),
-                            SectionHeaderButton(
-                                id: "create", icon: "plus",
-                                help: "New AVD",
-                                prominent: true,
-                                action: { onNavigate(.createAVD) }
-                            )
-                        ]
-                    )
-                    .padding(.horizontal, 14)
-                    .padding(.bottom, searchActive ? 6 : 8)
-
-                    // Search field — revealed by icon toggle
-                    if searchActive {
-                        AVDSearchField(text: $avdSearch, onDismiss: toggleSearch)
-                            .padding(.horizontal, 14)
-                            .padding(.bottom, 8)
-                            .transition(.move(edge: .top).combined(with: .opacity))
-                    }
-
-                    if state.avds.isEmpty {
-                        EmptyStateCard(
-                            icon: "square.dashed",
-                            message: "No AVDs found",
-                            detail: "Set your Android SDK path in Settings",
-                            actionLabel: "Open Settings"
-                        ) { onNavigate(.settings) }
-                        .padding(.horizontal, 14)
-                    } else if filteredAVDs.isEmpty {
-                        EmptyStateCard(
-                            icon: "magnifyingglass",
-                            message: "No AVDs match \"\(avdSearch)\""
-                        )
-                        .padding(.horizontal, 14)
-                    } else {
-                        VStack(spacing: 6) {
-                            ForEach(filteredAVDs) { avd in
-                                AVDCard(
-                                    avd: avd,
-                                    onStart:    { Task { await state.start(avd: avd) } },
-                                    onColdBoot: { Task { await state.coldBoot(avd: avd) } },
-                                    onWipeBoot: { Task { await state.wipeAndBoot(avd: avd) } },
-                                    onDelete:   { Task { await state.deleteAVD(avd: avd) } }
-                                )
-                            }
-                        }
-                        .padding(.horizontal, 14)
-                    }
-
-                    Spacer(minLength: 14)
+                    Spacer(minLength: Theme.Space.gutter)
                 }
             }
-            .animation(.easeOut(duration: 0.2), value: state.lastError != nil)
-            .animation(.easeOut(duration: 0.2), value: state.lastAction != nil)
-            .animation(.spring(response: 0.3, dampingFraction: 0.8), value: searchActive)
+            .animation(Theme.Motion.fade, value: state.lastError != nil)
+            .animation(Theme.Motion.fade, value: state.lastAction != nil)
+            .animation(Theme.Motion.smooth, value: state.running)
+            .animation(Theme.Motion.smooth, value: state.bootingAVDs)
 
-            Divider().opacity(0.07)
+            Hairline(inset: 0).opacity(0.6)
 
             HomeFooter(
                 isRefreshing: state.isRefreshing,
@@ -160,163 +74,189 @@ struct HomeView: View {
             )
         }
     }
-}
 
-// MARK: - Section Header
+    // MARK: Banners
 
-private struct SectionHeader: View {
-    let icon: String
-    let title: String
-    let color: Color
-    let count: Int
-    var buttons: [SectionHeaderButton] = []
+    @ViewBuilder
+    private var banners: some View {
+        if let action = state.lastAction {
+            ActionBanner(message: action)
+                .pageGutter()
+                .padding(.top, Theme.Space.lg)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
 
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(color)
-            Text(title.uppercased())
-                .font(.system(size: 10.5, weight: .semibold, design: .rounded))
-                .foregroundStyle(.secondary)
-                .kerning(0.5)
+        if let error = state.lastError {
+            ErrorBanner(message: error) { state.lastError = nil }
+                .pageGutter()
+                .padding(.top, state.lastAction == nil ? Theme.Space.lg : Theme.Space.xs)
+                .transition(.move(edge: .top).combined(with: .opacity))
+        }
+    }
 
-            if count > 0 {
-                CountBadge(count: count, tint: color)
-                    .transition(.scale.combined(with: .opacity))
-            }
+    // MARK: Running
 
-            Spacer(minLength: 6)
+    private var runningSection: some View {
+        VStack(spacing: 0) {
+            SectionHeader(
+                icon: "bolt.circle.fill",
+                title: "Running",
+                color: Theme.Palette.emulator,
+                count: state.running.count
+            )
+            .pageGutter()
+            .padding(.top, Theme.Space.lg)
+            .padding(.bottom, Theme.Space.md)
 
-            if !buttons.isEmpty {
-                HStack(spacing: 6) {
-                    ForEach(buttons) { btn in
-                        SectionHeaderIconButton(button: btn, tint: color)
+            if state.running.isEmpty && bootingAVDs.isEmpty {
+                EmptyStateCard(
+                    icon: "moon.zzz",
+                    message: "No devices connected",
+                    detail: "Launch an AVD below, plug in a phone, or connect one over Wi-Fi."
+                )
+                .pageGutter()
+            } else if filteredDevices.isEmpty && bootingAVDs.isEmpty {
+                EmptyStateCard(icon: "magnifyingglass", message: "No devices match “\(search)”")
+                    .pageGutter()
+            } else {
+                VStack(spacing: Theme.Space.rowGap) {
+                    ForEach(bootingAVDs) { avd in
+                        BootingCard(avd: avd)
+                            .transition(.opacity.combined(with: .scale(scale: 0.97)))
+                    }
+
+                    ForEach(filteredDevices) { device in
+                        RunningDeviceCard(
+                            device: device,
+                            isTransferring: state.installingAPK.contains(device.serial),
+                            onStop: { Task { await state.stop(device: device) } },
+                            onScreenshot: { Task { await state.captureScreenshot(device: device) } },
+                            onDropFile: { url in Task { await state.handleDroppedFile(device: device, url: url) } }
+                        )
                     }
                 }
+                .pageGutter()
             }
         }
-        .animation(.spring(response: 0.3), value: count)
     }
-}
 
-/// A frosted-glass pill showing a section's item count, tinted to the section color.
-private struct CountBadge: View {
-    let count: Int
-    let tint: Color
+    // MARK: Available
 
-    var body: some View {
-        Text("\(count)")
-            .font(.system(size: 10.5, weight: .bold, design: .rounded))
-            .foregroundStyle(tint)
-            .monospacedDigit()
-            .frame(minWidth: 11)
-            .padding(.horizontal, 6)
-            .padding(.vertical, 2)
-            .background(
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .overlay(Capsule().fill(tint.opacity(0.14)))
-                    .overlay(Capsule().strokeBorder(tint.opacity(0.22), lineWidth: 0.75))
+    private var availableSection: some View {
+        VStack(spacing: 0) {
+            SectionHeader(
+                icon: "square.stack.3d.up.fill",
+                title: "Available",
+                color: Theme.Palette.physical,
+                count: state.avds.count
             )
-            .contentTransition(.numericText())
-    }
-}
+            .pageGutter()
+            .padding(.bottom, Theme.Space.md)
 
-struct SectionHeaderButton: Identifiable {
-    let id: String
-    let icon: String
-    let help: String
-    var active: Bool = false
-    /// Renders as a filled accent-gradient action (used for the primary "+" add button).
-    var prominent: Bool = false
-    let action: () -> Void
-}
-
-private struct SectionHeaderIconButton: View {
-    let button: SectionHeaderButton
-    let tint: Color
-    @State private var hovered = false
-
-    private var isOn: Bool { hovered || button.active }
-
-    var body: some View {
-        Button(action: button.action) {
-            ZStack {
-                if button.prominent {
-                    Circle()
-                        .fill(Accent.gradient(tint))
-                        .shadow(color: tint.opacity(hovered ? 0.5 : 0.3),
-                                radius: hovered ? 5 : 3, y: 1)
-                } else {
-                    Circle()
-                        .fill(.ultraThinMaterial)
-                        .overlay(Circle().fill(tint.opacity(isOn ? 0.18 : 0.06)))
-                        .overlay(Circle().strokeBorder(tint.opacity(isOn ? 0.4 : 0.14), lineWidth: 0.75))
-                }
-
-                Image(systemName: button.icon)
-                    .font(.system(size: 11, weight: .bold))
-                    .foregroundStyle(button.prominent
-                        ? AnyShapeStyle(.white)
-                        : AnyShapeStyle(isOn ? tint : tint.opacity(0.7)))
-            }
-            .frame(width: 24, height: 24)
-        }
-        .buttonStyle(.plain)
-        .onHover { hovered = $0 }
-        .scaleEffect(hovered ? 1.1 : 1.0)
-        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: hovered)
-        .help(button.help)
-    }
-}
-
-// MARK: - AVD Search Field
-
-private struct AVDSearchField: View {
-    @Binding var text: String
-    var onDismiss: (() -> Void)? = nil
-    @FocusState private var focused: Bool
-
-    var body: some View {
-        HStack(spacing: 7) {
-            Image(systemName: "magnifyingglass")
-                .font(.system(size: 11, weight: .medium))
-                .foregroundStyle(.tertiary)
-
-            TextField("Filter AVDs…", text: $text)
-                .textFieldStyle(.plain)
-                .font(.system(size: 12))
-                .focused($focused)
-
-            Button {
-                if text.isEmpty {
-                    onDismiss?()
-                } else {
-                    text = ""
-                }
-            } label: {
-                Image(systemName: text.isEmpty ? "xmark" : "xmark.circle.fill")
-                    .font(.system(size: 12))
-                    .foregroundStyle(.tertiary)
-            }
-            .buttonStyle(.plain)
-        }
-        .padding(.horizontal, 10)
-        .padding(.vertical, 7)
-        .background(
-            RoundedRectangle(cornerRadius: 9, style: .continuous)
-                .fill(.ultraThinMaterial)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 9, style: .continuous)
-                        .strokeBorder(
-                            focused ? Color.blue.opacity(0.55) : Color.primary.opacity(0.08),
-                            lineWidth: 1
+            if state.avds.isEmpty {
+                EmptyStateCard(
+                    icon: "square.dashed",
+                    message: "No AVDs found",
+                    detail: "Set your Android SDK path in Settings, or create your first virtual device.",
+                    actionLabel: "Open Settings"
+                ) { onNavigate(.settings) }
+                .pageGutter()
+            } else if filteredAVDs.isEmpty {
+                EmptyStateCard(icon: "magnifyingglass", message: "No AVDs match “\(search)”")
+                    .pageGutter()
+            } else {
+                VStack(spacing: Theme.Space.rowGap) {
+                    ForEach(filteredAVDs) { avd in
+                        AVDCard(
+                            avd: avd,
+                            isRunning: state.runningAVDNames.contains(avd.name),
+                            isBooting: state.bootingAVDs.contains(avd.name),
+                            onStart:    { Task { await state.start(avd: avd) } },
+                            onColdBoot: { Task { await state.coldBoot(avd: avd) } },
+                            onWipeBoot: { Task { await state.wipeAndBoot(avd: avd) } },
+                            onDelete:   { Task { await state.deleteAVD(avd: avd) } }
                         )
-                )
-        )
-        .animation(.easeInOut(duration: 0.15), value: focused)
-        .onAppear { focused = true }
+                    }
+                }
+                .pageGutter()
+            }
+        }
+    }
+}
+
+// MARK: - Toolbar
+
+/// A persistent strip under the nav bar holding search and the page's two
+/// creation actions. Giving these a fixed home means they no longer hide inside
+/// section headers, and search no longer has to be revealed before it can be used.
+private struct HomeToolbar: View {
+    @Binding var search: String
+    let onConnectDevice: () -> Void
+    let onNewAVD: () -> Void
+
+    var body: some View {
+        HStack(spacing: Theme.Space.md) {
+            SearchField(
+                text: $search,
+                placeholder: "Search devices and AVDs…",
+                shape: .capsule
+            )
+
+            IconButton(
+                systemImage: "wifi",
+                help: "Connect a device over Wi-Fi",
+                style: .tinted(Theme.Palette.physical),
+                size: Theme.Size.iconButton,
+                symbolSize: 12,
+                action: onConnectDevice
+            )
+
+            IconButton(
+                systemImage: "plus",
+                help: "New AVD",
+                style: .prominent(Theme.Palette.physical),
+                size: Theme.Size.iconButton,
+                symbolSize: 12,
+                action: onNewAVD
+            )
+        }
+        .pageGutter()
+        .padding(.vertical, Theme.Space.md)
+    }
+}
+
+// MARK: - Booting Placeholder
+
+/// Stand-in row shown between "Launch" and the emulator appearing in `adb devices`.
+private struct BootingCard: View {
+    let avd: AVD
+
+    var body: some View {
+        HStack(spacing: Theme.Space.lg) {
+            GlassIconTile(
+                systemImage: avd.deviceType.systemImage,
+                color: avd.deviceType.color,
+                size: Theme.Size.avatar
+            )
+            .opacity(0.7)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(avd.friendlyName)
+                    .font(.system(size: 13, weight: .semibold))
+                    .lineLimit(1)
+                Text("Starting…")
+                    .font(.ehCaption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Spacer(minLength: Theme.Space.md)
+
+            ProgressView().controlSize(.small)
+        }
+        .padding(.horizontal, Theme.Space.lg)
+        .padding(.vertical, 10)
+        .background(GlassCard(cornerRadius: Theme.Radius.md, tint: avd.deviceType.color))
+        .opacity(0.85)
     }
 }
 
@@ -335,8 +275,8 @@ private struct HomeFooter: View {
 
             if let last = lastRefresh {
                 TimelineView(.periodic(from: .now, by: 10)) { _ in
-                    Text(relativeTime(from: last))
-                        .font(.system(size: 10.5))
+                    Text(RelativeTime.string(from: last))
+                        .font(.ehFootnote)
                         .foregroundStyle(.quaternary)
                         .monospacedDigit()
                 }
@@ -350,7 +290,7 @@ private struct HomeFooter: View {
                 Text("Quit")
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
-                    .padding(.horizontal, 12)
+                    .padding(.horizontal, Theme.Space.lg)
                     .padding(.vertical, 7)
                     .background(
                         Capsule().fill(.ultraThinMaterial)
@@ -358,16 +298,13 @@ private struct HomeFooter: View {
                     )
             }
             .buttonStyle(.plain)
+            .keyboardShortcut("q", modifiers: .command)
         }
-        .padding(.horizontal, 14)
+        .padding(.leading, Theme.Space.gutter)
+        // The popover's resize grip lives in this corner, so the footer stops
+        // short of it rather than putting Quit under the drag target.
+        .padding(.trailing, Theme.Space.xxl)
         .padding(.vertical, 10)
-    }
-
-    private func relativeTime(from date: Date) -> String {
-        let secs = Int(-date.timeIntervalSinceNow)
-        if secs < 5  { return "just now" }
-        if secs < 60 { return "\(secs)s ago" }
-        return "\(secs / 60)m ago"
     }
 }
 
@@ -392,13 +329,13 @@ private struct RefreshButton: View {
                     .font(.system(size: 12, weight: .medium))
             }
             .foregroundStyle(hovered ? .primary : .secondary)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, Theme.Space.lg)
             .padding(.vertical, 7)
             .background(
                 Capsule()
                     .fill(.ultraThinMaterial)
                     .overlay(Capsule().strokeBorder(
-                        hovered ? Color.primary.opacity(0.14) : Color.primary.opacity(0.07),
+                        Color.primary.opacity(hovered ? 0.14 : 0.07),
                         lineWidth: 1))
             )
         }
@@ -406,6 +343,20 @@ private struct RefreshButton: View {
         .disabled(isRefreshing)
         .opacity(isRefreshing ? 0.65 : 1)
         .onHover { hovered = $0 }
+        .keyboardShortcut("r", modifiers: .command)
+        .help("Refresh device list (⌘R)")
     }
 }
 
+// MARK: - Relative Time
+
+/// Shared by the Home footer and the Settings page, which had grown separate
+/// copies of the same formatting.
+enum RelativeTime {
+    static func string(from date: Date) -> String {
+        let seconds = Int(-date.timeIntervalSinceNow)
+        if seconds < 5 { return "just now" }
+        if seconds < 60 { return "\(seconds)s ago" }
+        return "\(seconds / 60)m ago"
+    }
+}
