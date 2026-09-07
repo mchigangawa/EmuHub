@@ -9,8 +9,14 @@ import Testing
 import Foundation
 @testable import EmuHub
 
+// Every type in EmuHub is main-actor isolated (the target builds with
+// SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor), while swift-testing runs test
+// functions as nonisolated by default. Annotating each suite with @MainActor is
+// what lets these tests touch the app's types at all.
+
 // MARK: - ADBParser tests
 
+@MainActor
 struct ADBParserTests {
 
     // MARK: parseLine
@@ -203,6 +209,7 @@ struct ADBParserTests {
 
 // MARK: - RunningDevice classification tests
 
+@MainActor
 struct RunningDeviceClassificationTests {
 
     @Test("connectionType is .wifi for TLS wireless serial")
@@ -249,6 +256,7 @@ struct RunningDeviceClassificationTests {
 
 // MARK: - Original tests
 
+@MainActor
 struct EmuHubTests {
 
     @Test("RunningDevice classifies emulators by serial prefix")
@@ -299,5 +307,156 @@ struct EmuHubTests {
         #expect(ReleaseUpdateService.normalizedVersion(from: "v1.2.3+45") == "1.2.3")
         #expect(ReleaseUpdateService.normalizedVersion(from: "1.2.3-beta") == "1.2.3")
         #expect(ReleaseUpdateService.compareVersion("1.2.3", "1.2.3+45") == .orderedSame)
+    }
+}
+
+// MARK: - Device inspection parsing
+
+@MainActor
+struct DeviceInspectionTests {
+
+    /// Representative output of the single combined shell call the inspector makes.
+    private let sample = """
+    __EH_PROPS__
+    Google
+    Pixel 8 Pro
+    14
+    34
+    arm64-v8a
+    __EH_BATTERY__
+    Current Battery Service state:
+      AC powered: false
+      level: 87
+      status: 3
+      temperature: 305
+    __EH_DISPLAY__
+    Physical size: 1008x2244
+    Physical density: 420
+    __EH_STORAGE__
+    Filesystem     1K-blocks     Used Available Use% Mounted on
+    /dev/block/dm-5 118293240 41264180  76029060  36% /data
+    __EH_NET__
+    192.168.1.0/24 dev wlan0 proto kernel scope link src 192.168.1.42
+    __EH_UPTIME__
+    93784.21 41234.10
+    """
+
+    @Test("parseInspection reads properties, battery, display, storage, network, and uptime")
+    func parsesEverySection() throws {
+        let info = AdbService.parseInspection(sample)
+
+        #expect(info.manufacturer == "Google")
+        #expect(info.model == "Pixel 8 Pro")
+        #expect(info.androidVersion == "14")
+        #expect(info.sdkInt == "34")
+        #expect(info.abi == "arm64-v8a")
+
+        #expect(info.batteryLevel == 87)
+        #expect(info.batteryStatus == .discharging)
+        // dumpsys reports tenths of a degree.
+        #expect(info.batteryTemperature == 30.5)
+
+        #expect(info.resolutionWidth == 1008)
+        #expect(info.resolutionHeight == 2244)
+        #expect(info.density == 420)
+
+        // df reports 1K blocks, so the parser scales both columns to bytes.
+        #expect(try #require(info.storageTotalBytes) == Int64(118_293_240) * 1024)
+        #expect(try #require(info.storageUsedBytes) == Int64(41_264_180) * 1024)
+
+        #expect(info.ipAddress == "192.168.1.42")
+        #expect(info.uptimeSeconds == 93784.21)
+    }
+
+    @Test("parseInspection prefers an override display size over the physical one")
+    func overrideSizeWins() {
+        let output = """
+        __EH_DISPLAY__
+        Physical size: 1440x3120
+        Override size: 1080x2340
+        Physical density: 560
+        Override density: 420
+        """
+        let info = AdbService.parseInspection(output)
+        #expect(info.resolutionWidth == 1080)
+        #expect(info.resolutionHeight == 2340)
+        #expect(info.density == 420)
+    }
+
+    @Test("parseInspection degrades field by field when sections are missing")
+    func partialOutputStillParses() {
+        let output = """
+        __EH_PROPS__
+        Samsung
+        SM-S911B
+        13
+        33
+        arm64-v8a
+        __EH_BATTERY__
+        __EH_STORAGE__
+        """
+        let info = AdbService.parseInspection(output)
+        #expect(info.model == "SM-S911B")
+        #expect(info.batteryLevel == nil)
+        #expect(info.storageTotalBytes == nil)
+        #expect(info.ipAddress == nil)
+    }
+
+    @Test("Formatted values render only when their source data is present")
+    func formattedValues() {
+        var info = DeviceInfo()
+        #expect(info.batteryText == nil)
+        #expect(info.storageText == nil)
+        #expect(info.resolutionText == nil)
+
+        info.batteryLevel = 45
+        info.batteryStatus = .charging
+        #expect(info.batteryText == "45% · Charging")
+
+        info.resolutionWidth = 1080
+        info.resolutionHeight = 2400
+        info.density = 440
+        #expect(info.resolutionText == "1080 × 2400 · 440 dpi")
+
+        info.androidVersion = "14"
+        info.sdkInt = "34"
+        #expect(info.osText == "Android 14 · API 34")
+
+        info.storageTotalBytes = 1000
+        info.storageUsedBytes = 250
+        #expect(info.storageFraction == 0.25)
+    }
+
+    @Test("Uptime is summarised at the largest useful unit")
+    func uptimeFormatting() {
+        var info = DeviceInfo()
+        info.uptimeSeconds = 90
+        #expect(info.uptimeText == "1m")
+        info.uptimeSeconds = 3_700
+        #expect(info.uptimeText == "1h 1m")
+        info.uptimeSeconds = 93_784
+        #expect(info.uptimeText == "1d 2h")
+    }
+}
+
+// MARK: - Recording size capping
+
+@MainActor
+struct RecordingSizeTests {
+
+    @Test("Recording size is left alone when it already fits the cap")
+    func belowCapIsUnchanged() {
+        #expect(AdbService.cappedRecordingSize(width: 720, height: 1280) == "720x1280")
+    }
+
+    @Test("Oversized displays are scaled down preserving aspect ratio and even dimensions")
+    func aboveCapIsScaled() {
+        let size = AdbService.cappedRecordingSize(width: 1280, height: 2856)
+        let parts = size.split(separator: "x").compactMap { Int($0) }
+        #expect(parts.count == 2)
+        #expect(max(parts[0], parts[1]) == 1280)
+        // screenrecord's encoder rejects odd dimensions.
+        #expect(parts[0] % 2 == 0)
+        #expect(parts[1] % 2 == 0)
     }
 }

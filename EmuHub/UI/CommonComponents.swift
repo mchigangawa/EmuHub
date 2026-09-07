@@ -5,31 +5,83 @@
 
 import SwiftUI
 
-// MARK: - Banners
+// MARK: - Notice Banner
 
-struct ErrorBanner: View {
+/// The inline banner used for transient success and error feedback. Both used to
+/// be separate near-identical views; the only real difference is the role, so
+/// that's the only thing callers pick.
+struct NoticeBanner: View {
+    enum Role {
+        case success, warning, failure
+
+        var tint: Color {
+            switch self {
+            case .success: Theme.Palette.emulator
+            case .warning: Theme.Palette.warning
+            case .failure: Theme.Palette.danger
+            }
+        }
+
+        var systemImage: String {
+            switch self {
+            case .success: "checkmark.circle.fill"
+            case .warning: "exclamationmark.circle.fill"
+            case .failure: "exclamationmark.triangle.fill"
+            }
+        }
+    }
+
+    let role: Role
     let message: String
+    /// When provided, the banner gains a dismiss button — errors persist until
+    /// something clears them, so they need a way out that isn't "wait".
+    var onDismiss: (() -> Void)? = nil
 
     var body: some View {
-        HStack(alignment: .top, spacing: 10) {
-            Image(systemName: "exclamationmark.triangle.fill")
+        HStack(alignment: .top, spacing: Theme.Space.md) {
+            Image(systemName: role.systemImage)
                 .font(.system(size: 13))
-                .foregroundStyle(.red)
+                .foregroundStyle(role.tint)
+
             Text(message)
                 .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.red.opacity(0.9))
+                .foregroundStyle(role.tint.opacity(0.95))
                 .fixedSize(horizontal: false, vertical: true)
-            Spacer()
+                .textSelection(.enabled)
+
+            Spacer(minLength: Theme.Space.xs)
+
+            if let onDismiss {
+                Button(action: onDismiss) {
+                    Image(systemName: "xmark")
+                        .font(.system(size: 9, weight: .bold))
+                        .foregroundStyle(role.tint.opacity(0.7))
+                        .frame(width: 16, height: 16)
+                        .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .help("Dismiss")
+            }
         }
-        .padding(12)
+        .padding(Theme.Space.lg)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.red.opacity(0.07))
+            RoundedRectangle(cornerRadius: Theme.Radius.xs + 4, style: .continuous)
+                .fill(role.tint.opacity(0.07))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.red.opacity(0.18), lineWidth: 1)
+                    RoundedRectangle(cornerRadius: Theme.Radius.xs + 4, style: .continuous)
+                        .strokeBorder(role.tint.opacity(0.18), lineWidth: 1)
                 )
         )
+    }
+}
+
+/// Convenience wrappers so call sites read as intent rather than configuration.
+struct ErrorBanner: View {
+    let message: String
+    var onDismiss: (() -> Void)? = nil
+
+    var body: some View {
+        NoticeBanner(role: .failure, message: message, onDismiss: onDismiss)
     }
 }
 
@@ -37,24 +89,7 @@ struct ActionBanner: View {
     let message: String
 
     var body: some View {
-        HStack(spacing: 10) {
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 13))
-                .foregroundStyle(.green)
-            Text(message)
-                .font(.system(size: 12, weight: .medium))
-                .foregroundStyle(.green.opacity(0.9))
-            Spacer()
-        }
-        .padding(12)
-        .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
-                .fill(Color.green.opacity(0.07))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
-                        .strokeBorder(Color.green.opacity(0.18), lineWidth: 1)
-                )
-        )
+        NoticeBanner(role: .success, message: message)
     }
 }
 
@@ -68,36 +103,39 @@ struct EmptyStateCard: View {
     var onAction: (() -> Void)? = nil
 
     var body: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: Theme.Space.md) {
             Image(systemName: icon)
                 .font(.system(size: 24, weight: .light))
                 .foregroundStyle(.tertiary)
 
             Text(message)
-                .font(.system(size: 13, weight: .medium))
+                .font(.ehBody)
                 .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
 
             if let detail {
                 Text(detail)
-                    .font(.system(size: 11))
+                    .font(.ehCaption)
                     .foregroundStyle(.tertiary)
                     .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .padding(.horizontal, Theme.Space.xxl)
             }
 
             if let label = actionLabel, let action = onAction {
                 Button(label, action: action)
                     .buttonStyle(.bordered)
                     .controlSize(.small)
-                    .padding(.top, 4)
+                    .padding(.top, Theme.Space.xs)
             }
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .background(
-            RoundedRectangle(cornerRadius: 10, style: .continuous)
+            RoundedRectangle(cornerRadius: Theme.Radius.xs + 4, style: .continuous)
                 .fill(Color.secondary.opacity(0.035))
                 .overlay(
-                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                    RoundedRectangle(cornerRadius: Theme.Radius.xs + 4, style: .continuous)
                         .strokeBorder(
                             Color.secondary.opacity(0.1),
                             style: StrokeStyle(lineWidth: 1, dash: [4, 4])
@@ -106,4 +144,3 @@ struct EmptyStateCard: View {
         )
     }
 }
-

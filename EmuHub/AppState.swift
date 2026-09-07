@@ -48,6 +48,24 @@ final class AppState: ObservableObject {
     @Published var logcatError: String?
     @Published var isLogcatPaused = false
 
+    // Device inspector
+    @Published var inspectorDevice: RunningDevice?         // device whose details are showing
+    @Published var deviceInfo: DeviceInfo?
+    @Published var isLoadingDeviceInfo = false
+    @Published var deviceInfoError: String?
+    @Published var isDarkModeOn: Bool?                     // nil until read from the device
+
+    // Wireless debugging
+    @Published var isWirelessSheetOpen = false
+    @Published var isWirelessBusy = false
+    @Published var wirelessError: String?
+    @Published var wirelessSuccess: String?
+
+    /// AVDs whose emulator we've launched but that haven't shown up in `adb devices`
+    /// yet. Drives the "Starting…" state on the card so a launch doesn't look inert
+    /// during the ~10s an emulator takes to register.
+    @Published var bootingAVDs: Set<String> = []
+
     @AppStorage("sdkPath") var sdkPath: String = ""
     @AppStorage("emulatorExtraArgs") var emulatorExtraArgs: String = "-no-snapshot-load"
     @AppStorage("autoRefreshSeconds") var autoRefreshSeconds: Double = 10
@@ -235,9 +253,22 @@ final class AppState: ObservableObject {
         if next != avds { avds = next }
     }
 
-    /// Publishes a new device list only when it changed.
+    /// Publishes a new device list only when it changed, and retires any
+    /// "starting…" placeholder whose emulator has now registered with adb.
     private func applyRunning(_ devices: [RunningDevice]) {
         if devices != running { running = devices }
+
+        if !bootingAVDs.isEmpty {
+            let live = Set(devices.compactMap(\.avdName))
+            let settled = bootingAVDs.intersection(live)
+            if !settled.isEmpty { bootingAVDs.subtract(settled) }
+        }
+    }
+
+    /// Names of AVDs that already have a running emulator, so the Available list
+    /// can mark them instead of offering a second launch that would just fail.
+    var runningAVDNames: Set<String> {
+        Set(running.compactMap(\.avdName))
     }
 
     /// Enriches a device list with model info (physical) and AVD names (emulators).
@@ -338,6 +369,11 @@ final class AppState: ObservableObject {
     }
 
     private func launchAVD(avd: AVD, prependArgs: [String] = []) async {
+        bootingAVDs.insert(avd.name)
+        // An emulator that never registers (bad image, crash on boot) would leave
+        // the card stuck on "Starting…", so give the placeholder a hard expiry.
+        scheduleBootTimeout(for: avd.name)
+
         do {
             ensureSdkPath()
             let toolchain = try AndroidToolchain(sdkPath: sdkPath)
@@ -361,7 +397,17 @@ final class AppState: ObservableObject {
             try? await Task.sleep(nanoseconds: 800_000_000)
             await refreshAll()
         } catch {
+            bootingAVDs.remove(avd.name)
             lastError = error.localizedDescription
+        }
+    }
+
+    /// Clears a boot placeholder if the emulator hasn't registered within the
+    /// window a cold boot realistically needs.
+    private func scheduleBootTimeout(for name: String, seconds: UInt64 = 90) {
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(nanoseconds: seconds * 1_000_000_000)
+            self?.bootingAVDs.remove(name)
         }
     }
 
